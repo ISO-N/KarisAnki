@@ -85,6 +85,19 @@ class ScheduleEngineTest {
 	}
 
 	@Test
+	void overdueFamiliarAdvancesExactlyOneStageWithoutExtraAdjustment() {
+		Instant overdueSince = now.minusSeconds(10L * 24 * 60 * 60);
+		for (int stage = 0; stage <= 7; stage++) {
+			ScheduleState overdue = new ScheduleState(stage, CardQueue.REVIEW, RelearnMode.NONE, null, 0,
+					day.minusDays(30), overdueSince);
+			ScheduleResult result = engine.answer(overdue, StudyQueue.REVIEW, AnswerResult.FAMILIAR, day, now, false,
+					false);
+			assertEquals(stage + 1, result.state().stage(), "stage " + stage);
+			assertEquals(day.plusDays(engine.intervalDays(stage + 1)), result.state().dueDate(), "stage " + stage);
+		}
+	}
+
+	@Test
 	void stage8CanContinueOrGraduate() {
 		ScheduleResult continued = engine.answer(review(8), StudyQueue.REVIEW, AnswerResult.FAMILIAR, day, now, false,
 				false);

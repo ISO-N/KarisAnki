@@ -8,9 +8,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
@@ -320,6 +320,206 @@ class ApplicationIntegrationTest {
 		assertTrue(stats.get("resultCounts").get("FAMILIAR").asLong() == 2);
 		assertTrue(stats.get("forecast").get("day7").asLong() > 0);
 		assertTrue(stats.get("hourlyDistribution").size() == 24);
+	}
+
+	@Test
+	void authCookieAndCrossDeviceSettingsPersist() throws Exception {
+		String email = uniqueEmail();
+		MvcResult firstRegister = register(email, "password123", "testcode");
+		assertStatus(firstRegister, 201);
+		String firstCookie = sessionCookie(firstRegister);
+		String firstHeader = firstRegister.getResponse().getHeader("Set-Cookie");
+		assertNotNull(firstHeader);
+		assertTrue(firstHeader.contains("HttpOnly"));
+		assertTrue(firstHeader.contains("SameSite=Lax"));
+		assertTrue(firstHeader.contains("Path=/"));
+		assertEquals(-1, firstRegister.getResponse().getCookies()[0].getMaxAge());
+
+		MvcResult remembered = login(email, "password123", true);
+		assertStatus(remembered, 200);
+		assertEquals(2592000, remembered.getResponse().getCookies()[0].getMaxAge());
+
+		MvcResult secondLogin = login(email, "password123", true);
+		assertStatus(secondLogin, 200);
+		String secondCookie = sessionCookie(secondLogin);
+		putJson("/api/settings", "{\"refreshTime\":\"06:00:00\",\"language\":\"EN\",\"theme\":\"DARK\"}",
+				secondCookie).andExpect(status().isOk());
+		getMe(firstCookie).andExpect(status().isOk())
+				.andExpect(jsonPath("$.settings.refreshTime").value("06:00:00"))
+				.andExpect(jsonPath("$.settings.language").value("EN"))
+				.andExpect(jsonPath("$.settings.theme").value("DARK"));
+
+		postNoBody("/api/auth/logout", firstCookie).andExpect(status().isNoContent());
+		getMe(firstCookie).andExpect(status().isUnauthorized());
+		getMe(secondCookie).andExpect(status().isOk());
+	}
+
+	@Test
+	void deckOrderValidationAndSoftDeleteCascade() throws Exception {
+		String user = registerAndLogin();
+		long first = createDeck("First", user);
+		long second = createDeck("Second", user);
+		getJson("/api/decks?timezone=UTC", user)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$[0].id").value(second))
+				.andExpect(jsonPath("$[1].id").value(first));
+
+		long card = createCard(first, "Front", null, user);
+		postJson("/api/decks/" + first + "/cards", "{\"front\":\"   \",\"back\":\"x\"}", user)
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("validation_error"));
+		JsonNode cardResponse = jsonNode(getJson("/api/cards/" + card, user).andReturn());
+		assertTrue(cardResponse.get("back").isNull());
+
+		getJson("/api/decks?timezone=UTC", "invalid").andExpect(status().isUnauthorized());
+		deleteJson("/api/decks/" + first, user).andExpect(status().isNoContent());
+		getJson("/api/decks/" + first + "/cards?page=0", user).andExpect(status().isNotFound());
+		getJson("/api/cards/" + card, user).andExpect(status().isNotFound());
+	}
+
+	@Test
+	void resetCardReturnsToFrontOfLearnQueue() throws Exception {
+		String user = registerAndLogin();
+		long deckId = createDeck("Reset", user);
+		long first = createCard(deckId, "First", "", user);
+		long second = createCard(deckId, "Second", "", user);
+		postJson("/api/answer",
+				"{\"cardId\":" + first + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
+				user).andExpect(status().isOk());
+		postJson("/api/answer",
+				"{\"cardId\":" + second + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
+				user).andExpect(status().isOk());
+
+		postNoBody("/api/cards/" + first + "/reset", user).andExpect(status().isNoContent());
+		getJson("/api/decks/" + deckId + "/queue?type=LEARN&timezone=UTC", user)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.cardIds[0]").value(first));
+	}
+
+	@Test
+	void statisticsSingleDeckUsesSelectedDeckCardStates() throws Exception {
+		String user = registerAndLogin();
+		long deckA = createDeck("Deck A", user);
+		long deckB = createDeck("Deck B", user);
+		long learnedA = createCard(deckA, "Learned A", "", user);
+		long relearnA = createCard(deckA, "Relearn A", "", user);
+		long learnedB = createCard(deckB, "Learned B", "", user);
+		postJson("/api/answer",
+				"{\"cardId\":" + learnedA + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
+				user).andExpect(status().isOk());
+		postJson("/api/answer",
+				"{\"cardId\":" + relearnA + ",\"result\":\"BLURRY\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
+				user).andExpect(status().isOk());
+		postJson("/api/answer",
+				"{\"cardId\":" + learnedB + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
+				user).andExpect(status().isOk());
+
+		JsonNode selected = jsonNode(getJson("/api/statistics?timezone=UTC&deckId=" + deckA, user).andReturn());
+		assertEquals(1, selected.get("learnedToday").asLong());
+		assertEquals(1, selected.get("stageDistribution").get("-1").asLong());
+		assertEquals(1, selected.get("stageDistribution").get("0").asLong());
+		assertEquals(1, selected.get("relearnCount").asLong());
+		assertEquals(1, selected.get("resultCounts").get("FAMILIAR").asLong());
+		assertEquals(1, selected.get("resultCounts").get("BLURRY").asLong());
+
+		JsonNode other = jsonNode(getJson("/api/statistics?timezone=UTC&deckId=" + deckB, user).andReturn());
+		assertEquals(1, other.get("learnedToday").asLong());
+		assertEquals(0, other.get("relearnCount").asLong());
+		assertEquals(1, other.get("stageDistribution").get("0").asLong());
+		assertEquals(0, other.get("stageDistribution").get("-1").asLong());
+	}
+
+	@Test
+	void dueStateRemainsDueAfterTimezoneRollback() throws Exception {
+		String user = registerAndLogin();
+		long deckId = createDeck("Timezone", user);
+		long card = createCard(deckId, "Due", "", user);
+		Long userId = userIdFromCookie(user);
+		var state = cardStateRepository.findActiveByCardIdForUser(card, userId).orElseThrow();
+		state.setStage(0);
+		state.setQueueType(top.kariscode.karisanki.domain.CardQueue.REVIEW);
+		state.setRelearnMode(top.kariscode.karisanki.domain.RelearnMode.NONE);
+		state.setDueDate(LocalDate.now(ZoneOffset.UTC));
+		state.setDueSince(null);
+		cardStateRepository.save(state);
+
+		getJson("/api/decks?timezone=Pacific/Kiritimati", user).andExpect(status().isOk());
+		var marked = cardStateRepository.findActiveByCardIdForUser(card, userId).orElseThrow();
+		assertNotNull(marked.getDueSince());
+
+		getJson("/api/decks/" + deckId + "/queue?type=REVIEW&timezone=Pacific/Midway", user)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.cardIds[0]").value(card));
+	}
+
+	@Test
+	void reviewQueueOrdersByDueDateAndSingleRelearnRepeatsImmediately() throws Exception {
+		String user = registerAndLogin();
+		long deckId = createDeck("Review Order", user);
+		long cardA = createCard(deckId, "A", "", user);
+		long cardB = createCard(deckId, "B", "", user);
+		long cardC = createCard(deckId, "C", "", user);
+		Long userId = userIdFromCookie(user);
+		setReviewState(cardA, 2, LocalDate.now(ZoneOffset.UTC).minusDays(3), userId);
+		setReviewState(cardB, 1, LocalDate.now(ZoneOffset.UTC).minusDays(1), userId);
+		setReviewState(cardC, 0, LocalDate.now(ZoneOffset.UTC).minusDays(2), userId);
+
+		getJson("/api/decks/" + deckId + "/queue?type=REVIEW&timezone=UTC", user)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.cardIds[0]").value(cardA))
+				.andExpect(jsonPath("$.cardIds[1]").value(cardC))
+				.andExpect(jsonPath("$.cardIds[2]").value(cardB));
+
+		long relearnDeck = createDeck("Relearn Only", user);
+		long only = createCard(relearnDeck, "Only", "", user);
+		var relearnState = cardStateRepository.findActiveByCardIdForUser(only, userId).orElseThrow();
+		relearnState.setStage(0);
+		relearnState.setQueueType(top.kariscode.karisanki.domain.CardQueue.RELEARN);
+		relearnState.setRelearnMode(top.kariscode.karisanki.domain.RelearnMode.BLURRY);
+		relearnState.setRelearnOrigin(top.kariscode.karisanki.domain.RelearnOrigin.REVIEW);
+		relearnState.setRelearnCorrectCount(0);
+		relearnState.setDueDate(LocalDate.now(ZoneOffset.UTC));
+		relearnState.setDueSince(null);
+		cardStateRepository.save(relearnState);
+
+		getJson("/api/decks/" + relearnDeck + "/queue?type=REVIEW&timezone=UTC", user)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.cardIds[0]").value(only));
+	}
+
+	@Test
+	void forgetInsideBlurryRelearnRequiresConfirmationThroughApi() throws Exception {
+		String user = registerAndLogin();
+		long deckId = createDeck("Confirm", user);
+		long card = createCard(deckId, "Card", "", user);
+		postJson("/api/answer",
+				"{\"cardId\":" + card + ",\"result\":\"BLURRY\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
+				user).andExpect(status().isOk());
+
+		long version = jsonNode(getJson("/api/cards/" + card, user).andReturn()).get("stateVersion").asLong();
+		postJson("/api/answer",
+				"{\"cardId\":" + card + ",\"result\":\"FORGOT\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\",\"stateVersion\":" + version + "}",
+				user).andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("confirmation_required"));
+
+		postJson("/api/answer",
+				"{\"cardId\":" + card + ",\"result\":\"FORGOT\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\",\"stateVersion\":" + version + ",\"confirmForget\":true}",
+				user).andExpect(status().isOk());
+		getJson("/api/cards/" + card, user)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.relearnMode").value("FORGOT"));
+	}
+
+	private void setReviewState(Long cardId, int stage, java.time.LocalDate dueDate, Long userId) {
+		var state = cardStateRepository.findActiveByCardIdForUser(cardId, userId).orElseThrow();
+		state.setStage(stage);
+		state.setQueueType(top.kariscode.karisanki.domain.CardQueue.REVIEW);
+		state.setRelearnMode(top.kariscode.karisanki.domain.RelearnMode.NONE);
+		state.setRelearnOrigin(null);
+		state.setRelearnCorrectCount(0);
+		state.setDueDate(dueDate);
+		state.setDueSince(null);
+		cardStateRepository.save(state);
 	}
 
 	private String registerAndLogin() throws Exception {

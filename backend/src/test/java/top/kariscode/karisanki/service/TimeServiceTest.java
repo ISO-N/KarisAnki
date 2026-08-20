@@ -24,6 +24,15 @@ class TimeServiceTest {
 	}
 
 	@Test
+	void learningDayUsesTimezoneForSameInstant() {
+		Instant now = Instant.parse("2026-08-21T03:00:00Z");
+		assertEquals(LocalDate.of(2026, 8, 21),
+				timeService.learningDay(LocalTime.of(4, 0), "Pacific/Kiritimati", now));
+		assertEquals(LocalDate.of(2026, 8, 20),
+				timeService.learningDay(LocalTime.of(4, 0), "Pacific/Midway", now));
+	}
+
+	@Test
 	void invalidTimezoneFallsBackToSystemZoneWithoutThrowing() {
 		Instant now = Instant.parse("2026-08-21T12:00:00Z");
 		assertEquals(LocalDate.now(java.time.ZoneId.systemDefault()),
