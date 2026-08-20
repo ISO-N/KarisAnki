@@ -87,6 +87,10 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
         }
         await loadCard(response.queue[0], response.queue);
       } catch (err) {
+        if (err instanceof ApiError && err.code === "confirmation_required") {
+          setPhase("confirmForget");
+          return;
+        }
         if (err instanceof ApiError && (err.code === "queue_conflict" || err.code === "queue_refresh")) {
           setPhase("loading");
           await loadQueue();

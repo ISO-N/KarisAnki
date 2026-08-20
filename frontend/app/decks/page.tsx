@@ -113,6 +113,13 @@ export default function DecksPage() {
               <div key={index} className="card h-36 animate-pulse" />
             ))}
           </div>
+        ) : error && decks.length === 0 ? (
+          <div className="empty">
+            <p>{error}</p>
+            <button className="btn btn-primary mt-4" onClick={load}>
+              <RotateCcw size={16} /> {t("retry")}
+            </button>
+          </div>
         ) : decks.length === 0 ? (
           <div className="empty">{t("emptyDecks")}</div>
         ) : (

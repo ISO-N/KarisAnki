@@ -76,7 +76,14 @@ export default function StatisticsPage() {
 
         {error && <div className="rounded-lg bg-danger-soft p-3 text-sm font-medium text-danger">{error}</div>}
 
-        {!stats ? (
+        {error && !stats ? (
+          <div className="empty">
+            <p>{error}</p>
+            <button className="btn btn-primary mt-4" onClick={() => load(deckId)}>
+              <RefreshCcw size={16} /> {t("retry")}
+            </button>
+          </div>
+        ) : !stats ? (
           <div className="empty">{t("emptyStatistics")}</div>
         ) : (
           <>

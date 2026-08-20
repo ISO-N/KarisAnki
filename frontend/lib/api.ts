@@ -24,7 +24,7 @@ const apiMessages: Record<UiLanguage, Record<string, string>> = {
     current_password_incorrect: "当前密码错误",
     queue_conflict: "队列已失效，请刷新后重试",
     queue_refresh: "卡片状态已变化，请刷新队列",
-    request_failed: "请求失败",
+    confirmation_required: "从模糊重学切换到忘记重学需要确认",
     validation_error: "请求参数不正确",
     rate_limited: "尝试过于频繁，请稍后再试",
     card_not_found: "卡片不存在",
@@ -46,6 +46,7 @@ const apiMessages: Record<UiLanguage, Record<string, string>> = {
     current_password_incorrect: "The current password is incorrect.",
     queue_conflict: "The queue is no longer valid. Refresh it and try again.",
     queue_refresh: "The card state changed. Refresh the queue.",
+    confirmation_required: "Confirm switching from blurry relearn to forgot relearn.",
     request_failed: "Request failed.",
     validation_error: "The request parameters are invalid.",
     rate_limited: "Too many attempts. Please try again later.",
@@ -82,6 +83,9 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   }
   const data = await response.json().catch(() => null);
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== "undefined") {
+      window.dispatchEvent(new Event("karisanki:unauthorized"));
+    }
     const code = data?.code || "request_failed";
     const message = data?.message || `Request failed (${response.status})`;
     throw new ApiError(code, message, response.status);

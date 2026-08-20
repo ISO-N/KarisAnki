@@ -60,6 +60,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    const handleUnauthorized = () => setUser(null);
+    window.addEventListener("karisanki:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("karisanki:unauthorized", handleUnauthorized);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     api<User>("/api/auth/me")
       .then((next) => {

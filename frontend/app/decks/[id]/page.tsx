@@ -26,7 +26,7 @@ export default function DeckDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = useCallback(async (requestedPage = page, requestedQuery = query, requestedStatus = status) => {
+  const load = useCallback(async (requestedPage = 0, requestedQuery = "", requestedStatus = "") => {
     try {
       const [decks, cardData] = await Promise.all([
         api<Deck[]>(`/api/decks?timezone=${encodeURIComponent(clientTimezone())}`),
@@ -46,34 +46,28 @@ export default function DeckDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [deckId, language, page, query, status, t]);
+  }, [deckId, language, t]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   const search = () => {
-    if (page === 0) {
-      void load(0, query, status);
-    } else {
-      setPage(0);
-    }
+    setPage(0);
+    void load(0, query, status);
   };
 
   const changeStatus = (value: string) => {
     setStatus(value);
-    if (page === 0) {
-      void load(0, query, value);
-    } else {
-      setPage(0);
-    }
+    setPage(0);
+    void load(0, query, value);
   };
 
   const deleteCard = async (card: Card) => {
     if (!window.confirm(t("confirmDelete"))) return;
     try {
       await api<void>(`/api/cards/${card.id}`, { method: "DELETE" });
-      await load();
+      await load(page, query, status);
     } catch (err) {
       setError(apiErrorMessage(err, language, t("error")));
     }
@@ -83,13 +77,17 @@ export default function DeckDetailPage() {
     if (!window.confirm(t("confirmReset"))) return;
     try {
       await api<void>(`/api/cards/${card.id}/reset`, { method: "POST" });
-      await load();
+      await load(page, query, status);
     } catch (err) {
       setError(apiErrorMessage(err, language, t("error")));
     }
   };
 
   const totalPages = Math.max(1, Math.ceil(cards.total / cards.pageSize));
+  const goToPage = (next: number) => {
+    setPage(next);
+    void load(next, query, status);
+  };
 
   return (
     <RequireAuth>
@@ -125,7 +123,7 @@ export default function DeckDetailPage() {
             onSaved={async () => {
               setEditorOpen(false);
               setEditing(null);
-              await load();
+              await load(page, query, status);
             }}
             onCancel={() => {
               setEditorOpen(false);
@@ -164,6 +162,13 @@ export default function DeckDetailPage() {
             {Array.from({ length: 3 }).map((_, index) => (
               <div key={index} className="card h-24 animate-pulse" />
             ))}
+          </div>
+        ) : error && cards.items.length === 0 ? (
+          <div className="empty">
+            <p>{error}</p>
+            <button className="btn btn-primary mt-4" onClick={() => load(page, query, status)}>
+              <RotateCcw size={16} /> {t("retry")}
+            </button>
           </div>
         ) : cards.items.length === 0 ? (
           <div className="empty">{t("emptyCards")}</div>
@@ -225,11 +230,11 @@ export default function DeckDetailPage() {
 
         {cards.total > cards.pageSize && (
           <div className="flex items-center justify-between gap-3">
-            <button className="btn btn-secondary" disabled={page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>
+            <button className="btn btn-secondary" disabled={page === 0} onClick={() => goToPage(Math.max(0, page - 1))}>
               <ChevronLeft size={16} /> {t("back")}
             </button>
             <span className="text-sm text-muted">{page + 1} / {totalPages}</span>
-            <button className="btn btn-secondary" disabled={page >= totalPages - 1} onClick={() => setPage((value) => value + 1)}>
+            <button className="btn btn-secondary" disabled={page >= totalPages - 1} onClick={() => goToPage(page + 1)}>
               {t("cards")} <ChevronRight size={16} />
             </button>
           </div>

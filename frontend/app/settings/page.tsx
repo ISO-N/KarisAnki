@@ -186,9 +186,13 @@ export default function SettingsPage() {
                 <button
                   className="btn btn-secondary"
                   onClick={async () => {
-                    await logoutCurrent();
-                    router.push("/login");
-                    router.refresh();
+                    try {
+                      await logoutCurrent();
+                      router.push("/login");
+                      router.refresh();
+                    } catch (err) {
+                      setError(apiErrorMessage(err, language, t("error")));
+                    }
                   }}
                 >
                   <LogOut size={16} /> {t("logoutCurrent")}
@@ -197,9 +201,13 @@ export default function SettingsPage() {
                   className="btn btn-danger"
                   onClick={async () => {
                     if (!window.confirm(t("confirmLogoutAll"))) return;
-                    await logoutAll();
-                    router.push("/login");
-                    router.refresh();
+                    try {
+                      await logoutAll();
+                      router.push("/login");
+                      router.refresh();
+                    } catch (err) {
+                      setError(apiErrorMessage(err, language, t("error")));
+                    }
                   }}
                 >
                   <LogOut size={16} /> {t("logoutAll")}
