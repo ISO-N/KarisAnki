@@ -2,7 +2,9 @@ package top.kariscode.karisanki.security;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.session.Session;
 import org.springframework.session.SessionRepository;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,21 @@ public class SessionRegistryService {
 			SessionRepository<?> sessionRepository) {
 		this.userSessionRepository = userSessionRepository;
 		this.sessionRepository = sessionRepository;
+	}
+
+	@Scheduled(fixedDelayString = "${karisanki.session-cleanup-interval:6h}")
+	@Transactional
+	public void cleanupExpiredSessions() {
+		List<UserSession> expired = userSessionRepository.findByExpiresAtBefore(Instant.now());
+		for (UserSession session : expired) {
+			try {
+				sessionRepository.deleteById(session.getSessionId());
+			}
+			catch (Exception ignored) {
+				// Spring Session may have already cleaned the row.
+			}
+		}
+		userSessionRepository.deleteAll(expired);
 	}
 
 	@Transactional
