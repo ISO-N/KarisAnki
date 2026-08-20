@@ -9,6 +9,7 @@ KarisAnki 的所有持久化数据都保存在 PostgreSQL 中。请使用 `pg_du
 在堆栈运行时从宿主机执行：
 
 ```bash
+mkdir -p backups
 docker compose exec -T postgres pg_dump -U karisanki -d karisanki --format=custom -f /tmp/karisanki.dump
 docker compose cp postgres:/tmp/karisanki.dump ./backups/karisanki-$(date +%F).dump
 ```
@@ -16,6 +17,7 @@ docker compose cp postgres:/tmp/karisanki.dump ./backups/karisanki-$(date +%F).d
 如需纯 SQL 备份：
 
 ```bash
+mkdir -p backups
 docker compose exec -T postgres pg_dump -U karisanki -d karisanki > backups/karisanki-$(date +%F).sql
 ```
 
