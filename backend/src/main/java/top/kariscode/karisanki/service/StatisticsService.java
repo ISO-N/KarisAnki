@@ -166,7 +166,8 @@ public class StatisticsService {
 				count++;
 				continue;
 			}
-			if (state.getQueueType() != CardQueue.REVIEW || state.getDueDate() == null) {
+			if (state.getQueueType() != CardQueue.REVIEW || state.getStage() < 0 || state.getStage() > 8
+					|| state.getDueDate() == null) {
 				continue;
 			}
 			LocalDate next = state.getDueSince() != null || !state.getDueDate().isAfter(today) ? today

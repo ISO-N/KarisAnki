@@ -22,7 +22,20 @@ public class AuthRateLimiter {
 		this.properties = properties;
 	}
 
+	public void cleanupExpired() {
+		Instant cutoff = Instant.now().minus(properties.getRateLimitWindow());
+		attempts.entrySet().removeIf(entry -> {
+			synchronized (entry.getValue()) {
+				while (!entry.getValue().isEmpty() && entry.getValue().peekFirst().isBefore(cutoff)) {
+					entry.getValue().removeFirst();
+				}
+				return entry.getValue().isEmpty();
+			}
+		});
+	}
+
 	public void check(String key) {
+		cleanupExpired();
 		Deque<Instant> window = attempts.computeIfAbsent(key, ignored -> new ArrayDeque<>());
 		synchronized (window) {
 			Instant cutoff = Instant.now().minus(properties.getRateLimitWindow());

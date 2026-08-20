@@ -20,6 +20,17 @@ public interface CardRepository extends JpaRepository<Card, Long> {
 			""")
 	Optional<Card> findActiveByIdForUser(@Param("id") Long id, @Param("userId") Long userId);
 
+	default Page<Card> searchInDeck(Long deckId, Long userId, String query, String status, Pageable pageable) {
+		return searchInDeckEscaped(deckId, userId, escapeLike(query), status, pageable);
+	}
+
+	private static String escapeLike(String value) {
+		if (value == null) {
+			return null;
+		}
+		return value.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+	}
+
 	@Query("""
 			select c from Card c
 			join c.deck d
@@ -29,8 +40,8 @@ public interface CardRepository extends JpaRepository<Card, Long> {
 			  and c.deletedAt is null
 			  and d.deletedAt is null
 			  and (:query is null
-			    or lower(c.front) like lower(concat('%', cast(:query as string), '%'))
-			    or (c.back is not null and lower(c.back) like lower(concat('%', cast(:query as string), '%'))))
+			    or lower(c.front) like lower(concat('%', cast(:query as string), '%')) escape '!'
+			    or (c.back is not null and lower(c.back) like lower(concat('%', cast(:query as string), '%')) escape '!'))
 			  and (:status is null
 			    or (:status = 'new' and cs.queueType = top.kariscode.karisanki.domain.CardQueue.NEW)
 			    or (:status = 'review' and cs.queueType = top.kariscode.karisanki.domain.CardQueue.REVIEW and cs.stage between 0 and 8)
@@ -38,7 +49,7 @@ public interface CardRepository extends JpaRepository<Card, Long> {
 			    or (:status = 'graduated' and cs.stage = 9))
 			order by c.position asc, c.id asc
 			""")
-	Page<Card> searchInDeck(@Param("deckId") Long deckId, @Param("userId") Long userId,
+	Page<Card> searchInDeckEscaped(@Param("deckId") Long deckId, @Param("userId") Long userId,
 			@Param("query") String query, @Param("status") String status, Pageable pageable);
 
 	@Query("select coalesce(max(c.position), 0) from Card c where c.deck.id = :deckId and c.deletedAt is null")
