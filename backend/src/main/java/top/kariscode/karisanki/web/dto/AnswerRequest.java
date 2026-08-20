@@ -12,7 +12,7 @@ public record AnswerRequest(
 		@NotNull AnswerResult result,
 		@NotNull StudyQueue queueType,
 		@NotBlank String timezone,
-		Long stateVersion,
+		@NotNull Long stateVersion,
 		Boolean graduate,
 		Boolean confirmForget) {
 }

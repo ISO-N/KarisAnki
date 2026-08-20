@@ -54,11 +54,11 @@ public class AnswerService {
 		Card card = cardService.requireCard(userId, request.cardId());
 		UserSettings settings = authService.settings(userId);
 		CardState state = card.getState();
-		if (request.stateVersion() != null && !request.stateVersion().equals(state.getVersion())) {
-			throw BusinessException.conflict("queue_refresh", "卡片状态已变化，请刷新队列");
-		}
 		if (state == null) {
 			throw BusinessException.notFound("card_not_found", "卡片不存在");
+		}
+		if (!request.stateVersion().equals(state.getVersion())) {
+			throw BusinessException.conflict("queue_refresh", "卡片状态已变化，请刷新队列");
 		}
 		User user = userRepository.findById(userId)
 				.orElseThrow(() -> BusinessException.unauthorized("unauthenticated", "登录状态已失效"));

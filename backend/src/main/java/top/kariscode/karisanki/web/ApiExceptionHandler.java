@@ -4,10 +4,12 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import top.kariscode.karisanki.domain.scheduling.ConfirmationRequiredException;
 import top.kariscode.karisanki.domain.scheduling.SchedulingConflictException;
@@ -29,6 +31,16 @@ public class ApiExceptionHandler {
 				.map(error -> error.getDefaultMessage())
 				.orElse("请求参数不正确");
 		return ResponseEntity.badRequest().body(Map.of("code", "validation_error", "message", message));
+	}
+
+	@ExceptionHandler(HttpMessageNotReadableException.class)
+	public ResponseEntity<Map<String, String>> handleUnreadable(HttpMessageNotReadableException exception) {
+		return ResponseEntity.badRequest().body(Map.of("code", "validation_error", "message", "请求参数格式不正确"));
+	}
+
+	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
+	public ResponseEntity<Map<String, String>> handleTypeMismatch(MethodArgumentTypeMismatchException exception) {
+		return ResponseEntity.badRequest().body(Map.of("code", "validation_error", "message", "请求参数类型不正确"));
 	}
 
 	@ExceptionHandler(ConfirmationRequiredException.class)
