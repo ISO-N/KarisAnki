@@ -11,8 +11,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,7 +33,10 @@ import jakarta.servlet.http.Cookie;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import top.kariscode.karisanki.security.SessionRegistryService;
+import top.kariscode.karisanki.domain.deck.AnswerEvent;
 import top.kariscode.karisanki.domain.user.UserSession;
+import top.kariscode.karisanki.repository.AnswerEventRepository;
 import top.kariscode.karisanki.repository.CardStateRepository;
 import top.kariscode.karisanki.repository.UserSessionRepository;
 
@@ -46,6 +53,11 @@ class ApplicationIntegrationTest {
 	@Autowired
 	private CardStateRepository cardStateRepository;
 
+	@Autowired
+	private AnswerEventRepository answerEventRepository;
+
+	@Autowired
+	private SessionRegistryService sessionRegistryService;
 	@Autowired
 	private UserSessionRepository userSessionRepository;
 
@@ -136,9 +148,8 @@ class ApplicationIntegrationTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.total").value(2));
 
-		postJson("/api/answer",
-				"{\"cardId\":" + cardOne + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
-				userA).andExpect(status().isOk());
+		answerCard(cardOne, "FAMILIAR", "LEARN", "UTC", userA)
+				.andExpect(status().isOk());
 
 		putJson("/api/cards/" + cardOne, "{\"front\":\"Mitochondria updated\",\"back\":\"still unchanged\"}", userA)
 				.andExpect(status().isOk())
@@ -184,16 +195,13 @@ class ApplicationIntegrationTest {
 				.andExpect(jsonPath("$.cardIds", hasSize(3)))
 				.andExpect(jsonPath("$.cardIds[0]").value(cardOne));
 
-		postJson("/api/answer",
-				"{\"cardId\":" + cardOne + ",\"result\":\"BLURRY\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
-				user).andExpect(status().isOk())
+		answerCard(cardOne, "BLURRY", "LEARN", "UTC", user)
 				.andExpect(jsonPath("$.queue[0]").value(cardTwo))
 				.andExpect(jsonPath("$.queue[1]").value(cardOne))
 				.andExpect(jsonPath("$.queue[2]").value(cardThree));
 
-		postJson("/api/answer",
-				"{\"cardId\":" + cardTwo + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
-				user).andExpect(status().isOk());
+		answerCard(cardTwo, "FAMILIAR", "LEARN", "UTC", user)
+				.andExpect(status().isOk());
 
 		getJson("/api/decks/" + deckId + "/queue?type=LEARN&timezone=UTC", user)
 				.andExpect(status().isOk())
@@ -201,9 +209,7 @@ class ApplicationIntegrationTest {
 				.andExpect(jsonPath("$.cardIds[1]").value(cardOne));
 
 		long staleVersion = jsonNode(getJson("/api/cards/" + cardOne, user).andReturn()).get("stateVersion").asLong();
-		postJson("/api/answer",
-				"{\"cardId\":" + cardOne + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
-				user).andExpect(status().isOk())
+		answerCard(cardOne, "FAMILIAR", "LEARN", "UTC", user)
 				.andExpect(jsonPath("$.queue[0]").value(cardThree))
 				.andExpect(jsonPath("$.queue[1]").value(cardOne));
 
@@ -215,9 +221,8 @@ class ApplicationIntegrationTest {
 		postNoBody("/api/decks/" + deckId + "/reset?timezone=UTC", user).andExpect(status().isNoContent());
 
 		long dueCard = createCard(deckId, "Due", "", user);
-		postJson("/api/answer",
-				"{\"cardId\":" + dueCard + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
-				user).andExpect(status().isOk());
+		answerCard(dueCard, "FAMILIAR", "LEARN", "UTC", user)
+				.andExpect(status().isOk());
 		// Force the freshly learned card due today so the review queue includes it.
 		Long userId = userIdFromCookie(user);
 		var state = cardStateRepository.findActiveByCardIdForUser(dueCard, userId).orElseThrow();
@@ -260,9 +265,8 @@ class ApplicationIntegrationTest {
 		long deckId = createDeck("Original", user);
 		long card = createCard(deckId, "Question", "Answer", user);
 
-		postJson("/api/answer",
-				"{\"cardId\":" + card + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
-				user).andExpect(status().isOk());
+		answerCard(card, "FAMILIAR", "LEARN", "UTC", user)
+				.andExpect(status().isOk());
 
 		patchJson("/api/decks/" + deckId, "{\"name\":\"Renamed\"}", user).andExpect(status().isOk());
 
@@ -289,13 +293,11 @@ class ApplicationIntegrationTest {
 		long learnedCard = createCard(deckId, "Learned", "", user);
 		long relearnCard = createCard(deckId, "Relearn", "", user);
 
-		postJson("/api/answer",
-				"{\"cardId\":" + learnedCard + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
-				user).andExpect(status().isOk());
+		answerCard(learnedCard, "FAMILIAR", "LEARN", "UTC", user)
+				.andExpect(status().isOk());
 
-		postJson("/api/answer",
-				"{\"cardId\":" + relearnCard + ",\"result\":\"BLURRY\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
-				user).andExpect(status().isOk());
+		answerCard(relearnCard, "BLURRY", "LEARN", "UTC", user)
+				.andExpect(status().isOk());
 
 		Long userId = userIdFromCookie(user);
 		var state = cardStateRepository.findActiveByCardIdForUser(learnedCard, userId).orElseThrow();
@@ -305,21 +307,26 @@ class ApplicationIntegrationTest {
 
 		getJson("/api/decks/" + deckId + "/queue?type=REVIEW&timezone=UTC", user).andExpect(status().isOk());
 
-		long version = jsonNode(getJson("/api/cards/" + learnedCard, user).andReturn()).get("stateVersion").asLong();
-		postJson("/api/answer",
-				"{\"cardId\":" + learnedCard + ",\"result\":\"FAMILIAR\",\"queueType\":\"REVIEW\",\"timezone\":\"UTC\",\"stateVersion\":" + version + "}",
-				user).andExpect(status().isOk());
+		answerCard(learnedCard, "FAMILIAR", "REVIEW", "UTC", user)
+				.andExpect(status().isOk());
+
+		answerCard(relearnCard, "FAMILIAR", "LEARN", "UTC", user)
+				.andExpect(status().isOk());
 
 		MvcResult statsResult = getJson("/api/statistics?timezone=UTC", user).andExpect(status().isOk()).andReturn();
 		JsonNode stats = jsonNode(statsResult);
-		assertTrue(stats.get("learnedToday").asLong() == 1);
-		assertTrue(stats.get("reviewedToday").asLong() >= 1);
-		assertTrue(stats.get("tomorrowDue").asLong() >= 1);
-		assertTrue(stats.get("relearnCount").asLong() == 1);
-		assertTrue(stats.get("retentionRate").asDouble() == 100.0);
-		assertTrue(stats.get("resultCounts").get("FAMILIAR").asLong() == 2);
-		assertTrue(stats.get("forecast").get("day7").asLong() > 0);
-		assertTrue(stats.get("hourlyDistribution").size() == 24);
+		assertEquals(1, stats.get("learnedToday").asLong());
+		assertEquals(2, stats.get("reviewedToday").asLong());
+		assertEquals(2, stats.get("tomorrowDue").asLong());
+		assertEquals(1, stats.get("relearnCount").asLong());
+		assertEquals(100.0, stats.get("retentionRate").asDouble(), 0.001);
+		assertEquals(3, stats.get("resultCounts").get("FAMILIAR").asLong());
+		assertEquals(4, stats.get("forecast").get("day7").asLong());
+		assertEquals(6, stats.get("forecast").get("day30").asLong());
+		assertEquals(24, stats.get("hourlyDistribution").size());
+		List<AnswerEvent> events = answerEventRepository.findByUserIdOrderByAnsweredAtAsc(userId);
+		String expectedHour = String.valueOf(events.get(events.size() - 1).getAnsweredAt().atZone(ZoneId.of("UTC")).getHour());
+		assertTrue(stats.get("hourlyDistribution").get(expectedHour).asLong() >= 1);
 	}
 
 	@Test
@@ -383,12 +390,10 @@ class ApplicationIntegrationTest {
 		long deckId = createDeck("Reset", user);
 		long first = createCard(deckId, "First", "", user);
 		long second = createCard(deckId, "Second", "", user);
-		postJson("/api/answer",
-				"{\"cardId\":" + first + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
-				user).andExpect(status().isOk());
-		postJson("/api/answer",
-				"{\"cardId\":" + second + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
-				user).andExpect(status().isOk());
+		answerCard(first, "FAMILIAR", "LEARN", "UTC", user)
+				.andExpect(status().isOk());
+		answerCard(second, "FAMILIAR", "LEARN", "UTC", user)
+				.andExpect(status().isOk());
 
 		postNoBody("/api/cards/" + first + "/reset", user).andExpect(status().isNoContent());
 		getJson("/api/decks/" + deckId + "/queue?type=LEARN&timezone=UTC", user)
@@ -404,15 +409,12 @@ class ApplicationIntegrationTest {
 		long learnedA = createCard(deckA, "Learned A", "", user);
 		long relearnA = createCard(deckA, "Relearn A", "", user);
 		long learnedB = createCard(deckB, "Learned B", "", user);
-		postJson("/api/answer",
-				"{\"cardId\":" + learnedA + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
-				user).andExpect(status().isOk());
-		postJson("/api/answer",
-				"{\"cardId\":" + relearnA + ",\"result\":\"BLURRY\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
-				user).andExpect(status().isOk());
-		postJson("/api/answer",
-				"{\"cardId\":" + learnedB + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
-				user).andExpect(status().isOk());
+		answerCard(learnedA, "FAMILIAR", "LEARN", "UTC", user)
+				.andExpect(status().isOk());
+		answerCard(relearnA, "BLURRY", "LEARN", "UTC", user)
+				.andExpect(status().isOk());
+		answerCard(learnedB, "FAMILIAR", "LEARN", "UTC", user)
+				.andExpect(status().isOk());
 
 		JsonNode selected = jsonNode(getJson("/api/statistics?timezone=UTC&deckId=" + deckA, user).andReturn());
 		assertEquals(1, selected.get("learnedToday").asLong());
@@ -492,9 +494,8 @@ class ApplicationIntegrationTest {
 		String user = registerAndLogin();
 		long deckId = createDeck("Confirm", user);
 		long card = createCard(deckId, "Card", "", user);
-		postJson("/api/answer",
-				"{\"cardId\":" + card + ",\"result\":\"BLURRY\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
-				user).andExpect(status().isOk());
+		answerCard(card, "BLURRY", "LEARN", "UTC", user)
+				.andExpect(status().isOk());
 
 		long version = jsonNode(getJson("/api/cards/" + card, user).andReturn()).get("stateVersion").asLong();
 		postJson("/api/answer",
@@ -508,6 +509,264 @@ class ApplicationIntegrationTest {
 		getJson("/api/cards/" + card, user)
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.relearnMode").value("FORGOT"));
+	}
+
+	@Test
+	void answerWithoutStateVersionIsRejected() throws Exception {
+		String user = registerAndLogin();
+		long deckId = createDeck("Version", user);
+		long card = createCard(deckId, "Card", "", user);
+
+		postJson("/api/answer",
+				"{\"cardId\":" + card + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
+				user).andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("validation_error"));
+	}
+
+	@Test
+	void newAccountUsesDefaultSettingsAndRejectsNonQuarterHourRefresh() throws Exception {
+		String email = uniqueEmail();
+		MvcResult created = postJson("/api/auth/register",
+				"{\"email\":\"" + email + "\",\"password\":\"password123\",\"inviteCode\":\"testcode\"}",
+				null).andReturn();
+		assertStatus(created, 201);
+		String user = sessionCookie(created);
+
+		getMe(user).andExpect(status().isOk())
+				.andExpect(jsonPath("$.settings.refreshTime").value("04:00:00"))
+				.andExpect(jsonPath("$.settings.language").value("EN"))
+				.andExpect(jsonPath("$.settings.theme").value("SYSTEM"));
+
+		putJson("/api/settings", "{\"refreshTime\":\"06:07:00\",\"language\":\"EN\",\"theme\":\"DARK\"}",
+				user).andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("invalid_refresh_time"));
+	}
+
+	@Test
+	void cardSearchMatchesBackAndEscapesLikeWildcards() throws Exception {
+		String user = registerAndLogin();
+		long deckId = createDeck("Search", user);
+		long percentCard = createCard(deckId, "discount", "save 100%", user);
+		long percentLookalike = createCard(deckId, "100x", "", user);
+		long underscoreCard = createCard(deckId, "a_c", "snake", user);
+		createCard(deckId, "abc", "", user);
+
+		getJson("/api/decks/" + deckId + "/cards?q=snake&page=0", user)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.total").value(1))
+				.andExpect(jsonPath("$.items[0].id").value(underscoreCard));
+
+		MockHttpServletRequestBuilder percentRequest = get("/api/decks/" + deckId + "/cards")
+				.param("q", "100%").param("page", "0");
+		withCookie(percentRequest, user);
+		mockMvc.perform(percentRequest)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.total").value(1))
+				.andExpect(jsonPath("$.items[0].id").value(percentCard));
+
+		getJson("/api/decks/" + deckId + "/cards?q=a_c&page=0", user)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.total").value(1))
+				.andExpect(jsonPath("$.items[0].id").value(underscoreCard));
+		assertTrue(percentLookalike > 0);
+	}
+
+	@Test
+	void editingCardPreservesRelearnProgressAndSchedule() throws Exception {
+		String user = registerAndLogin();
+		long deckId = createDeck("Edit Relearn", user);
+		long card = createCard(deckId, "Original", "", user);
+
+		answerCard(card, "BLURRY", "LEARN", "UTC", user).andExpect(status().isOk());
+		answerCard(card, "FAMILIAR", "LEARN", "UTC", user).andExpect(status().isOk());
+
+		JsonNode before = jsonNode(getJson("/api/cards/" + card, user).andReturn());
+		putJson("/api/cards/" + card, "{\"front\":\"Updated\",\"back\":\"new back\"}", user)
+				.andExpect(status().isOk());
+		JsonNode after = jsonNode(getJson("/api/cards/" + card, user).andReturn());
+		assertEquals(before.get("stage").asInt(), after.get("stage").asInt());
+		assertEquals(before.get("relearnMode").asText(), after.get("relearnMode").asText());
+		assertEquals(before.get("relearnCorrectCount").asInt(), after.get("relearnCorrectCount").asInt());
+		assertEquals(before.get("dueDate").asText(), after.get("dueDate").asText());
+		assertEquals(before.get("stateVersion").asLong(), after.get("stateVersion").asLong());
+	}
+
+	@Test
+	void deletedCardIsRemovedFromQueueAndForecast() throws Exception {
+		String user = registerAndLogin();
+		long deckId = createDeck("Deleted Queue", user);
+		long card = createCard(deckId, "Soon deleted", "", user);
+		answerCard(card, "FAMILIAR", "LEARN", "UTC", user).andExpect(status().isOk());
+
+		Long userId = userIdFromCookie(user);
+		var state = cardStateRepository.findActiveByCardIdForUser(card, userId).orElseThrow();
+		state.setDueDate(LocalDate.now(ZoneOffset.UTC));
+		state.setDueSince(null);
+		cardStateRepository.save(state);
+
+		getJson("/api/decks/" + deckId + "/queue?type=REVIEW&timezone=UTC", user)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.cardIds[0]").value(card));
+
+		deleteJson("/api/cards/" + card, user).andExpect(status().isNoContent());
+		getJson("/api/decks/" + deckId + "/queue?type=REVIEW&timezone=UTC", user)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.cardIds", hasSize(0)));
+
+		JsonNode stats = jsonNode(getJson("/api/statistics?timezone=UTC", user).andReturn());
+		assertEquals(0, stats.get("forecast").get("day7").asLong());
+		assertEquals(0, stats.get("forecast").get("day180").asLong());
+	}
+
+	@Test
+	void relearnInsertionUsesExponentialOffsetAndTailFallback() throws Exception {
+		String user = registerAndLogin();
+		Long userId = userIdFromCookie(user);
+		long deckId = createDeck("Insertion", user);
+		long c1 = createCard(deckId, "C1", "", user);
+		long c2 = createCard(deckId, "C2", "", user);
+		long c3 = createCard(deckId, "C3", "", user);
+		long c4 = createCard(deckId, "C4", "", user);
+		long c5 = createCard(deckId, "C5", "", user);
+		long c6 = createCard(deckId, "C6", "", user);
+		long c7 = createCard(deckId, "C7", "", user);
+		long c8 = createCard(deckId, "C8", "", user);
+		long relearnOne = createCard(deckId, "R1", "", user);
+		setRelearnState(relearnOne, -1, 2, userId);
+
+		getJson("/api/decks/" + deckId + "/queue?type=LEARN&timezone=UTC", user)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.cardIds[0]").value(c1))
+				.andExpect(jsonPath("$.cardIds[1]").value(c2))
+				.andExpect(jsonPath("$.cardIds[2]").value(c3))
+				.andExpect(jsonPath("$.cardIds[3]").value(c4))
+				.andExpect(jsonPath("$.cardIds[4]").value(relearnOne))
+				.andExpect(jsonPath("$.cardIds[5]").value(c5))
+				.andExpect(jsonPath("$.cardIds[6]").value(c6))
+				.andExpect(jsonPath("$.cardIds[7]").value(c7))
+				.andExpect(jsonPath("$.cardIds[8]").value(c8));
+
+		long tailDeck = createDeck("Tail", user);
+		long tailOne = createCard(tailDeck, "T1", "", user);
+		long tailTwo = createCard(tailDeck, "T2", "", user);
+		long tailThree = createCard(tailDeck, "T3", "", user);
+		long tailRelearn = createCard(tailDeck, "TR", "", user);
+		setRelearnState(tailRelearn, -1, 3, userId);
+		getJson("/api/decks/" + tailDeck + "/queue?type=LEARN&timezone=UTC", user)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.cardIds[0]").value(tailOne))
+				.andExpect(jsonPath("$.cardIds[1]").value(tailTwo))
+				.andExpect(jsonPath("$.cardIds[2]").value(tailThree))
+				.andExpect(jsonPath("$.cardIds[3]").value(tailRelearn));
+
+		long relearnTwo = createCard(deckId, "R2", "", user);
+		setRelearnState(relearnTwo, -1, 2, userId);
+		getJson("/api/decks/" + deckId + "/queue?type=LEARN&timezone=UTC", user)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.cardIds[0]").value(c1))
+				.andExpect(jsonPath("$.cardIds[1]").value(c2))
+				.andExpect(jsonPath("$.cardIds[2]").value(c3))
+				.andExpect(jsonPath("$.cardIds[3]").value(c4))
+				.andExpect(jsonPath("$.cardIds[4]").value(relearnOne))
+				.andExpect(jsonPath("$.cardIds[5]").value(relearnTwo))
+				.andExpect(jsonPath("$.cardIds[6]").value(c5))
+				.andExpect(jsonPath("$.cardIds[7]").value(c6))
+				.andExpect(jsonPath("$.cardIds[8]").value(c7))
+				.andExpect(jsonPath("$.cardIds[9]").value(c8));
+	}
+
+	@Test
+	void resetAndDeletedDeckKeepStatisticsHistory() throws Exception {
+		String user = registerAndLogin();
+		long deckId = createDeck("History", user);
+		long card = createCard(deckId, "Reset card", "", user);
+		answerCard(card, "FAMILIAR", "LEARN", "UTC", user).andExpect(status().isOk());
+
+		postNoBody("/api/cards/" + card + "/reset", user).andExpect(status().isNoContent());
+		JsonNode resetStats = jsonNode(getJson("/api/statistics?timezone=UTC", user).andReturn());
+		assertEquals(1, resetStats.get("learnedToday").asLong());
+		assertEquals(1, resetStats.get("resultCounts").get("FAMILIAR").asLong());
+		assertEquals(1, resetStats.get("stageDistribution").get("-1").asLong());
+
+		long deletedDeck = createDeck("Delete Me", user);
+		long deletedCard = createCard(deletedDeck, "Deleted card", "", user);
+		answerCard(deletedCard, "FAMILIAR", "LEARN", "UTC", user).andExpect(status().isOk());
+		deleteJson("/api/decks/" + deletedDeck, user).andExpect(status().isNoContent());
+
+		JsonNode deletedStats = jsonNode(getJson("/api/statistics?timezone=UTC", user).andReturn());
+		assertEquals(2, deletedStats.get("learnedToday").asLong());
+		boolean found = false;
+		for (JsonNode option : deletedStats.get("deckOptions")) {
+			if ("Delete Me".equals(option.get("name").asText())) {
+				found = option.get("deleted").asBoolean();
+			}
+		}
+		assertTrue(found);
+	}
+
+	@Test
+	void changingRefreshTimeKeepsHistoricalLearningDay() throws Exception {
+		String user = registerAndLogin();
+		long deckId = createDeck("History Time", user);
+		long card = createCard(deckId, "Event", "", user);
+		answerCard(card, "FAMILIAR", "LEARN", "UTC", user).andExpect(status().isOk());
+
+		Long userId = userIdFromCookie(user);
+		List<AnswerEvent> before = answerEventRepository.findByUserIdOrderByAnsweredAtAsc(userId);
+		LocalDate originalDay = before.get(before.size() - 1).getLearningDay();
+
+		putJson("/api/settings", "{\"refreshTime\":\"23:00:00\",\"language\":\"EN\",\"theme\":\"DARK\"}",
+				user).andExpect(status().isOk());
+
+		List<AnswerEvent> after = answerEventRepository.findByUserIdOrderByAnsweredAtAsc(userId);
+		assertEquals(originalDay, after.get(after.size() - 1).getLearningDay());
+	}
+
+	@Test
+	void invalidQueueTypeReturnsBadRequest() throws Exception {
+		String user = registerAndLogin();
+		long deckId = createDeck("Invalid Queue", user);
+		getJson("/api/decks/" + deckId + "/queue?type=BAD&timezone=UTC", user)
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("invalid_queue_type"));
+	}
+
+	@Test
+	void expiredSessionsAreCleanedUp() throws Exception {
+		String user = registerAndLogin();
+		Long userId = userIdFromCookie(user);
+		UserSession expired = new UserSession("cleanup-" + System.nanoTime(), userId,
+				Instant.now().minusSeconds(1), false);
+		userSessionRepository.save(expired);
+
+		sessionRegistryService.cleanupExpiredSessions();
+
+		assertTrue(userSessionRepository.findById(expired.getSessionId()).isEmpty());
+	}
+
+	private void setRelearnState(Long cardId, int stage, int correctCount, Long userId) {
+		var state = cardStateRepository.findActiveByCardIdForUser(cardId, userId).orElseThrow();
+		state.setStage(stage);
+		state.setQueueType(top.kariscode.karisanki.domain.CardQueue.RELEARN);
+		state.setRelearnMode(top.kariscode.karisanki.domain.RelearnMode.BLURRY);
+		state.setRelearnOrigin(top.kariscode.karisanki.domain.RelearnOrigin.LEARN);
+		state.setRelearnCorrectCount(correctCount);
+		state.setDueDate(LocalDate.now(ZoneOffset.UTC));
+		state.setDueSince(null);
+		cardStateRepository.save(state);
+	}
+
+	private long stateVersion(long cardId, String cookie) throws Exception {
+		return jsonNode(getJson("/api/cards/" + cardId, cookie).andReturn()).get("stateVersion").asLong();
+	}
+
+	private ResultActions answerCard(long cardId, String result, String queueType, String timezone,
+			String cookie) throws Exception {
+		long version = stateVersion(cardId, cookie);
+		return postJson("/api/answer",
+				"{\"cardId\":" + cardId + ",\"result\":\"" + result + "\",\"queueType\":\"" + queueType
+						+ "\",\"timezone\":\"" + timezone + "\",\"stateVersion\":" + version + "}",
+				cookie);
 	}
 
 	private void setReviewState(Long cardId, int stage, java.time.LocalDate dueDate, Long userId) {
