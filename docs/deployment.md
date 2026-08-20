@@ -6,7 +6,7 @@ KarisAnki v1 由 PostgreSQL、Spring Boot 后端和 Next.js 前端三个服务�
 
 - 已安装支持 Compose v2 的 Docker
 - 公网部署时需要一个域名和 TLS 终止
-- 需要为 `KARISANKI_INVITE_CODES` 配置至少一个邀请码
+- 如需开放注册，为 `KARISANKI_INVITE_CODES` 配置至少一个邀请码；留空时注册保持关闭
 
 ## 启动
 
