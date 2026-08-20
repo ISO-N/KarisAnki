@@ -1,0 +1,23 @@
+name: karisanki-test
+
+services:
+  postgres-test:
+    image: postgres:17-alpine
+    container_name: karisanki-test-postgres
+    environment:
+      POSTGRES_DB: karisanki_test
+      POSTGRES_USER: ${TEST_DB_USERNAME:-karisanki}
+      POSTGRES_PASSWORD: ${TEST_DB_PASSWORD:-karisanki}
+    ports:
+      - "5433:5432"
+    volumes:
+      - karisanki-test-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TEST_DB_USERNAME:-karisanki} -d karisanki_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+volumes:
+  karisanki-test-postgres:
