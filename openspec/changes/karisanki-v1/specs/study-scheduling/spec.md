@@ -38,6 +38,10 @@
 - **THEN** 卡片进入 `stage7`
 - **AND** 下次复习安排在 90 天后
 
+#### Scenario: 逾期卡不额外调整 stage
+- **WHEN** 一张 `stage6` 卡已经逾期后点熟悉
+- **THEN** 卡片仍进入 `stage7`
+- **AND** 下次复习仍按正常间隔安排在 90 天后
 ### Requirement: 正常复习模糊结果
 系统 SHALL 在正常复习点模糊时进入模糊重学。`stage0` 或 `stage1` 完成重学 SHALL 回到 `stage0`。`stage2` 到 `stage8` 完成重学 SHALL 后退一个 `stage`，下一学习日到期，并在后续一次成功复习后按“回退后 stage 到原 stage”的间隔排期。
 
