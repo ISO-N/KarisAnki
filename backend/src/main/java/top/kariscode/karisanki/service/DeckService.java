@@ -1,5 +1,6 @@
 package top.kariscode.karisanki.service;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -21,18 +22,22 @@ public class DeckService {
 	private final DeckRepository deckRepository;
 	private final CardRepository cardRepository;
 	private final CardStateRepository cardStateRepository;
+	private final DueStateService dueStateService;
 	private final top.kariscode.karisanki.repository.UserRepository userRepository;
 
 	public DeckService(DeckRepository deckRepository, CardRepository cardRepository,
-			CardStateRepository cardStateRepository, top.kariscode.karisanki.repository.UserRepository userRepository) {
+			CardStateRepository cardStateRepository, DueStateService dueStateService,
+			top.kariscode.karisanki.repository.UserRepository userRepository) {
 		this.deckRepository = deckRepository;
 		this.cardRepository = cardRepository;
 		this.cardStateRepository = cardStateRepository;
+		this.dueStateService = dueStateService;
 		this.userRepository = userRepository;
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public List<DeckDtos.DeckResponse> list(Long userId, LocalDate today) {
+		dueStateService.markDueStates(userId, today, Instant.now());
 		return deckRepository.findActiveByUserIdOrderByCreatedAtDesc(userId).stream()
 				.map(deck -> toResponse(deck, today))
 				.toList();

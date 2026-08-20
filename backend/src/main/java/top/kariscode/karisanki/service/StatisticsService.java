@@ -36,32 +36,35 @@ public class StatisticsService {
 	private final AnswerEventRepository answerEventRepository;
 	private final CardStateRepository cardStateRepository;
 	private final DeckRepository deckRepository;
+	private final DueStateService dueStateService;
 	private final TimeService timeService;
 	private final ScheduleEngine scheduleEngine;
 
 	public StatisticsService(AuthService authService, AnswerEventRepository answerEventRepository,
-			CardStateRepository cardStateRepository, DeckRepository deckRepository, TimeService timeService,
-			ScheduleEngine scheduleEngine) {
+			CardStateRepository cardStateRepository, DeckRepository deckRepository, DueStateService dueStateService,
+			TimeService timeService, ScheduleEngine scheduleEngine) {
 		this.authService = authService;
 		this.answerEventRepository = answerEventRepository;
 		this.cardStateRepository = cardStateRepository;
 		this.deckRepository = deckRepository;
+		this.dueStateService = dueStateService;
 		this.timeService = timeService;
 		this.scheduleEngine = scheduleEngine;
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public StatisticsResponse summary(Long userId, Long deckId, String timezone) {
 		UserSettings settings = authService.settings(userId);
 		Instant now = Instant.now();
 		LocalDate learningDay = timeService.learningDay(settings.getRefreshTime(), timezone, now);
 		LocalDate tomorrow = learningDay.plusDays(1);
+		dueStateService.markDueStates(userId, learningDay, now);
 		List<AnswerEvent> events = deckId == null
 				? answerEventRepository.findByUserIdOrderByAnsweredAtAsc(userId)
 				: answerEventRepository.findByUserIdAndDeckIdOrderByAnsweredAtAsc(userId, deckId);
 		List<CardState> states = deckId == null
 				? cardStateRepository.findActiveForUser(userId)
-				: cardStateRepository.findActiveByDeckForUser(userId, deckId);
+				: cardStateRepository.findActiveByDeckForUser(deckId, userId);
 
 		long learnedToday = events.stream()
 				.filter(event -> event.getLearningDay().equals(learningDay))

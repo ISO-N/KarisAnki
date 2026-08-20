@@ -23,13 +23,15 @@ public class QueueService {
 	private final DeckService deckService;
 	private final AuthService authService;
 	private final CardStateRepository cardStateRepository;
+	private final DueStateService dueStateService;
 	private final TimeService timeService;
 
 	public QueueService(DeckService deckService, AuthService authService,
-			CardStateRepository cardStateRepository, TimeService timeService) {
+			CardStateRepository cardStateRepository, DueStateService dueStateService, TimeService timeService) {
 		this.deckService = deckService;
 		this.authService = authService;
 		this.cardStateRepository = cardStateRepository;
+		this.dueStateService = dueStateService;
 		this.timeService = timeService;
 	}
 
@@ -38,6 +40,7 @@ public class QueueService {
 		deckService.requireDeck(userId, deckId);
 		Instant now = Instant.now();
 		LocalDate learningDay = timeService.learningDay(authService.settings(userId).getRefreshTime(), timezone, now);
+		dueStateService.markDueStates(userId, learningDay, now);
 		RelearnOrigin origin = type == StudyQueue.LEARN ? RelearnOrigin.LEARN : RelearnOrigin.REVIEW;
 
 		List<Long> normal = switch (type) {
@@ -46,12 +49,6 @@ public class QueueService {
 					.toList();
 			case REVIEW -> {
 				List<CardState> dueStates = cardStateRepository.findActiveReviewByDeckForUser(deckId, userId, learningDay);
-				for (CardState state : dueStates) {
-					if (state.getDueSince() == null && state.getDueDate() != null && !state.getDueDate().isAfter(learningDay)) {
-						state.setDueSince(now);
-						cardStateRepository.save(state);
-					}
-				}
 				yield dueStates.stream()
 						.sorted(Comparator
 								.comparing((CardState cs) -> cs.getDueDate() == null ? LocalDate.MAX : cs.getDueDate())

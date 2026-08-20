@@ -61,6 +61,19 @@ public interface CardStateRepository extends JpaRepository<CardState, Long> {
 			join cs.card c
 			join c.deck d
 			where d.user.id = :userId and c.deletedAt is null and d.deletedAt is null
+			  and cs.queueType = top.kariscode.karisanki.domain.CardQueue.REVIEW
+			  and cs.stage between 0 and 8
+			  and cs.dueDate is not null and cs.dueDate <= :today
+			  and cs.dueSince is null
+			""")
+	List<CardState> findActiveDueReviewsWithoutDueSinceForUser(@Param("userId") Long userId,
+			@Param("today") LocalDate today);
+
+	@Query("""
+			select cs from CardState cs
+			join cs.card c
+			join c.deck d
+			where d.user.id = :userId and c.deletedAt is null and d.deletedAt is null
 			""")
 	List<CardState> findActiveForUser(@Param("userId") Long userId);
 

@@ -29,7 +29,7 @@ cd backend
 ./mvnw test
 ```
 
-启动时 Flyway 会把 `V1__initial_schema.sql` 应用到测试数据库。`spring.jpa.hibernate.ddl-auto=validate` 会校验 JPA 实体与已迁移 schema 是否一致。
+启动时 Flyway 会把 `V1` 和 `V2` 迁移应用到测试数据库。`spring.jpa.hibernate.ddl-auto=validate` 会校验 JPA 实体与已迁移 schema 是否一致。
 
 ## 配置
 
