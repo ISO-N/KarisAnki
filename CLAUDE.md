@@ -49,9 +49,21 @@ npm run lint     # eslint（配置见 eslint.config.mjs）
 
 ### Docker 部署（仓库根目录）
 
+本地源码构建：
+
 ```bash
 cp .env.example .env   # 必须编辑 DB_PASSWORD、KARISANKI_INVITE_CODES、COOKIE_SECURE 等
-docker compose up -d --build
+docker compose -f docker-compose.local.yml up -d --build
+curl -I http://localhost:3000
+curl http://localhost:3000/api/auth/registration-status
+```
+
+服务器拉取 GHCR 镜像：
+
+```bash
+cp .env.example .env
+docker compose pull
+docker compose up -d
 curl -I http://localhost:3000
 curl http://localhost:3000/api/auth/registration-status
 ```
@@ -68,8 +80,9 @@ openspec/         规格与变更记录
 Dockerfile              单镜像构建（后端 jar + 前端 standalone）
 docker/entrypoint.sh     单容器内同时启动后端与前端
 .github/workflows/       master push 发布 GHCR 并保留最新两个版本
-docker-compose.yml        生产/开发编排（postgres + app 单镜像）
-docker-compose.test.yml   测试专用 PG（5433 端口）
+docker-compose.yml        服务器部署（拉取 GHCR 单镜像）
+docker-compose.local.yml   本地源码构建单镜像
+docker-compose.test.yml    测试专用 PG（5433 端口）
 ```
 
 ### 后端分层 (`backend/src/main/java/top/kariscode/karisanki/`)

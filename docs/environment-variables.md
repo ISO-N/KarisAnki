@@ -66,4 +66,5 @@ KARISANKI_REGISTRATION_ENABLED=true
 | --- | --- | --- |
 | `BACKEND_URL` | `http://127.0.0.1:8080` | 单容器内前端使用的后端地址 |
 | `PORT` | `3000` | Compose 暴露的宿主机端口 |
+| `APP_IMAGE` | `ghcr.io/iso-n/karisanki:latest` | `docker-compose.yml` 拉取的 GHCR 镜像；fork 或私有镜像时覆盖 |
 | `HOSTNAME` | `0.0.0.0` | 前端容器内绑定的地址 |

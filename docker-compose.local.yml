@@ -1,5 +1,7 @@
-# 服务器部署：拉取 CI 已发布的 GHCR 镜像。
-# 本地源码构建请使用 docker-compose.local.yml。
+# 本地构建：从当前仓库源码构建单镜像。
+# 服务器拉取 GHCR 镜像请使用 docker-compose.yml。
+name: karisanki-local
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -8,7 +10,7 @@ services:
       POSTGRES_USER: ${DB_USERNAME:-karisanki}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-karisanki}
     volumes:
-      - karisanki-postgres:/var/lib/postgresql/data
+      - karisanki-local-postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-karisanki} -d karisanki"]
       interval: 5s
@@ -17,8 +19,11 @@ services:
     restart: unless-stopped
 
   app:
-    image: ${APP_IMAGE:-ghcr.io/iso-n/karisanki:latest}
-    pull_policy: always
+    image: karisanki:local
+    build:
+      context: .
+      args:
+        BACKEND_URL: http://127.0.0.1:8080
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/karisanki
       DB_USERNAME: ${DB_USERNAME:-karisanki}
@@ -38,4 +43,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  karisanki-postgres:
+  karisanki-local-postgres:
