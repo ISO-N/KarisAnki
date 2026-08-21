@@ -25,20 +25,22 @@ import top.kariscode.karisanki.web.error.BusinessException;
 
 @Service
 public class CardService {
-
 	private final DeckService deckService;
 	private final CardRepository cardRepository;
 	private final CardStateRepository cardStateRepository;
 	private final AppProperties appProperties;
 	private final ObjectMapper objectMapper;
+	private final StatisticsCacheService statisticsCacheService;
 
 	public CardService(DeckService deckService, CardRepository cardRepository,
-			CardStateRepository cardStateRepository, AppProperties appProperties, ObjectMapper objectMapper) {
+			CardStateRepository cardStateRepository, AppProperties appProperties, ObjectMapper objectMapper,
+			StatisticsCacheService statisticsCacheService) {
 		this.deckService = deckService;
 		this.cardRepository = cardRepository;
 		this.cardStateRepository = cardStateRepository;
 		this.appProperties = appProperties;
 		this.objectMapper = objectMapper;
+		this.statisticsCacheService = statisticsCacheService;
 	}
 
 	@Transactional
@@ -51,6 +53,7 @@ public class CardService {
 		card.setState(state);
 		cardRepository.save(card);
 		cardStateRepository.save(state);
+		statisticsCacheService.invalidateDeck(userId, deckId);
 		return toResponse(card);
 	}
 
@@ -67,6 +70,7 @@ public class CardService {
 		Card card = requireCard(userId, cardId);
 		card.delete();
 		cardRepository.save(card);
+		statisticsCacheService.invalidateDeck(userId, card.getDeck().getId());
 	}
 
 	@Transactional(readOnly = true)
@@ -165,6 +169,9 @@ public class CardService {
 			created++;
 		}
 
+		if (created > 0) {
+			statisticsCacheService.invalidateDeck(userId, deckId);
+		}
 		return new CardDtos.ImportResult(created, skippedDuplicates);
 	}
 

@@ -1,7 +1,6 @@
 "use client";
-/* eslint-disable react-hooks/set-state-in-effect -- fetch-on-mount is an external data sync */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -17,6 +16,9 @@ import {
   Upload,
 } from "lucide-react";
 import { api, apiErrorMessage, clientTimezone } from "@/lib/api";
+import { invalidateApiCache } from "@/lib/api-cache";
+import { useAuth } from "@/lib/auth-context";
+import { useApiData } from "@/lib/use-api-data";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -34,7 +36,7 @@ import { PageHeader } from "@/components/page-header";
 import { RequireAuth } from "@/components/require-auth";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import type { Card as StudyCard, CardList, Deck, ImportResult } from "@/lib/types";
+import type { Card as StudyCard, CardList, DeckOverview, ImportResult } from "@/lib/types";
 
 type CardPendingAction =
   | { type: "delete"; card: StudyCard }
@@ -44,67 +46,60 @@ type CardPendingAction =
 export default function DeckDetailPage() {
   const { id } = useParams<{ id: string }>();
   const deckId = Number(id);
+  const { user } = useAuth();
   const { t, language } = useI18n();
-  const [deck, setDeck] = useState<Deck | null>(null);
-  const [cards, setCards] = useState<CardList>({ items: [], total: 0, page: 0, pageSize: 50 });
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [page, setPage] = useState(0);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<StudyCard | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [actionError, setActionError] = useState("");
   const [pendingCardAction, setPendingCardAction] = useState<CardPendingAction>(null);
   const [pendingBusy, setPendingBusy] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const statusQuery = status === "all" ? "" : status;
 
-  const load = useCallback(async (requestedPage = 0, requestedQuery = "", requestedStatus = "") => {
-    try {
-      const [decks, cardData] = await Promise.all([
-        api<Deck[]>(`/api/decks?timezone=${encodeURIComponent(clientTimezone())}`),
-        api<CardList>(
-          `/api/decks/${deckId}/cards?page=${requestedPage}&q=${encodeURIComponent(requestedQuery)}&status=${encodeURIComponent(requestedStatus)}`,
-        ),
-      ]);
-      const found = decks.find((item) => item.id === deckId);
-      setDeck(found ?? null);
-      setCards(cardData);
-      setError("");
-      if (!found) setMessage(t("error"));
-    } catch (err) {
-      setError(apiErrorMessage(err, language, t("error")));
-    } finally {
-      setLoading(false);
-    }
-  }, [deckId, language, t]);
+  const { data: overview, loading, error, refresh } = useApiData<DeckOverview>({
+    path: `/api/decks/${deckId}`,
+    query: {
+      timezone: clientTimezone(),
+      page,
+      q: query || undefined,
+      status: statusQuery || undefined,
+    },
+    auth: "required",
+  });
+  const deck = overview?.deck ?? null;
+  const cards: CardList = overview?.cards ?? { items: [], total: 0, page: 0, pageSize: 50 };
+  const load = useCallback(() => {
+    refresh();
+  }, [refresh]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
+  const invalidateDeckData = useCallback(async () => {
+    if (!user) return;
+    await invalidateApiCache({ type: "deck", userId: user.id, deckId });
+    await invalidateApiCache({ type: "stats", userId: user.id });
+  }, [deckId, user]);
   const search = () => {
     setPage(0);
-    void load(0, query, statusQuery);
   };
 
   const changeStatus = (value: string) => {
     setStatus(value);
     setPage(0);
-    void load(0, query, value === "all" ? "" : value);
   };
 
   const goToPage = (next: number) => {
     setPage(next);
-    void load(next, query, statusQuery);
   };
 
   const handleImported = async (result: ImportResult) => {
     setImportResult(result);
     setImportOpen(false);
-    await load(page, query, statusQuery);
+    await invalidateDeckData();
+    await load();
   };
 
   const runPendingCardAction = async () => {
@@ -120,9 +115,10 @@ export default function DeckDetailPage() {
         setMessage(t("cardReset"));
       }
       setPendingCardAction(null);
-      await load(page, query, statusQuery);
+      await invalidateDeckData();
+      await load();
     } catch (err) {
-      setError(apiErrorMessage(err, language, t("error")));
+      setActionError(apiErrorMessage(err, language, t("error")));
     } finally {
       setPendingBusy(false);
     }
@@ -178,8 +174,7 @@ export default function DeckDetailPage() {
           </Alert>
         ) : null}
 
-        {error && !loading ? <ErrorState title={t("error")} description={error} onRetry={() => load(page, query, statusQuery)} retryLabel={t("retry")} /> : null}
-
+        {error || actionError ? <ErrorState title={t("error")} description={error || actionError} onRetry={() => { setActionError(""); load(); }} retryLabel={t("retry")} /> : null}
         <CardEditor
           key={editing?.id ?? "new"}
           deckId={deckId}
@@ -195,7 +190,8 @@ export default function DeckDetailPage() {
             setMessage(editing ? t("cardUpdated") : t("cardCreated"));
             setEditorOpen(false);
             setEditing(null);
-            await load(page, query, statusQuery);
+            await invalidateDeckData();
+            await load();
           }}
         />
 
@@ -244,8 +240,8 @@ export default function DeckDetailPage() {
               <Skeleton key={index} className="h-28" />
             ))}
           </div>
-        ) : error && cards.items.length === 0 ? (
-          <ErrorState title={t("error")} description={error} onRetry={() => load(page, query, statusQuery)} retryLabel={t("retry")} />
+        ) : error || actionError && cards.items.length === 0 ? (
+          <ErrorState title={t("error")} description={error || actionError} onRetry={() => { setActionError(""); load(); }} retryLabel={t("retry")} />
         ) : cards.items.length === 0 ? (
           <EmptyState
             title={query || status !== "all" ? t("noResults") : t("emptyCards")}

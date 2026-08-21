@@ -1,9 +1,9 @@
 "use client";
-/* eslint-disable react-hooks/set-state-in-effect -- fetch-on-mount is an external data sync */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { BarChart3, CalendarClock, CheckCircle2, RefreshCcw, ShieldCheck } from "lucide-react";
-import { api, apiErrorMessage, clientTimezone } from "@/lib/api";
+import { clientTimezone } from "@/lib/api";
+import { useApiData } from "@/lib/use-api-data";
 import { RequireAuth } from "@/components/require-auth";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
@@ -22,34 +22,21 @@ function maxValue(values: number[]) {
 }
 
 export default function StatisticsPage() {
-  const { t, language } = useI18n();
-  const [stats, setStats] = useState<Statistics | null>(null);
+  const { t } = useI18n();
   const [deckId, setDeckId] = useState("all");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
+  const query = deckId && deckId !== "all" ? { deckId } : {};
+  const { data: stats, loading, error, refresh } = useApiData<Statistics>({
+    path: `/api/statistics?timezone=${encodeURIComponent(clientTimezone())}`,
+    query,
+    auth: "required",
+  });
   const load = useCallback(
-    async (selectedDeckId: string) => {
-      const query = selectedDeckId && selectedDeckId !== "all" ? `&deckId=${selectedDeckId}` : "";
-      try {
-        const data = await api<Statistics>(
-          `/api/statistics?timezone=${encodeURIComponent(clientTimezone())}${query}`,
-        );
-        setStats(data);
-        setError("");
-      } catch (err) {
-        setError(apiErrorMessage(err, language, t("error")));
-      } finally {
-        setLoading(false);
-      }
+    (selectedDeckId?: string) => {
+      if (selectedDeckId !== undefined) setDeckId(String(selectedDeckId));
+      refresh();
     },
-    [language, t],
+    [refresh],
   );
-
-  useEffect(() => {
-    load(deckId);
-  }, [deckId, load]);
-
   if (loading && !stats) {
     return (
       <RequireAuth>

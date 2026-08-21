@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, apiErrorMessage, ApiError, clientTimezone } from "@/lib/api";
+import { apiCacheKey, invalidateApiCache, readApiCache, writeApiCache } from "@/lib/api-cache";
+import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
 import { useNetworkStatus } from "@/lib/network";
 import {
+  countConflictedOutboxForSession,
   countPendingOutbox,
   createOutboxEntry,
   latestPendingForCard,
@@ -13,6 +16,8 @@ import {
   markOutboxConflicted,
   clearOutboxForSession,
   clearConflictedOutboxForSession,
+  chunkOutboxEntries,
+  OUTBOX_BATCH_SIZE,
 } from "@/lib/offline/outbox";
 import { mutateLocalQueue } from "@/lib/offline/queue-mutation";
 import { loadStoredSession, saveStoredSession, updateStoredSession, clearStoredSession } from "@/lib/offline/session-store";
@@ -23,7 +28,17 @@ import {
   type StoredSession,
   type StudyQueueType,
 } from "@/lib/offline/types";
-import type { AnswerResponse, AnswerResult, Card, StudySession } from "@/lib/types";
+import type {
+  AnswerBatchItemRequest,
+  AnswerBatchResponse,
+  AnswerResponse,
+  AnswerResult,
+  Card,
+  StudySession,
+} from "@/lib/types";
+
+export const USE_BATCH_ANSWER_API = true;
+export const SYNC_FLUSH_DELAY_MS = 500;
 
 export type StudyPhase =
   | "loading"
@@ -64,6 +79,7 @@ export function useOfflineSession(
   type: StudyQueueType,
 ): OfflineSessionController {
   const { language, t } = useI18n();
+  const { user } = useAuth();
   const key = useMemo(() => sessionKey(deckId, type), [deckId, type]);
   const [session, setSessionState] = useState<StoredSession | null>(null);
   const [phase, setPhase] = useState<StudyPhase>("loading");
@@ -73,6 +89,7 @@ export function useOfflineSession(
   const sessionRef = useRef<StoredSession | null>(null);
   const syncingRef = useRef(false);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const networkOnline = useNetworkStatus();
   const onlineRef = useRef(networkOnline);
   const online = networkOnline;
@@ -94,18 +111,64 @@ export function useOfflineSession(
     setSessionState(next);
   }, []);
 
+  const sessionPath = useCallback(
+    (timezone: string) =>
+      `/api/decks/${deckId}/session?type=${type}&timezone=${encodeURIComponent(timezone)}`,
+    [deckId, type],
+  );
+
+  const writeSessionCache = useCallback(
+    async (stored: StoredSession) => {
+      if (!user) return;
+      const payload: StudySession = {
+        deckId: stored.deckId,
+        type: stored.type,
+        timezone: stored.timezone,
+        order: stored.order,
+        cards: stored.cards,
+        total: stored.total,
+      };
+      const path = sessionPath(stored.timezone);
+      const cacheKey = apiCacheKey(user.id, "GET", path);
+      await writeApiCache(cacheKey, user.id, "GET", path, payload);
+    },
+    [sessionPath, user],
+  );
+
+  const invalidateAfterAnswer = useCallback(async () => {
+    if (!user) return;
+    await invalidateApiCache({ type: "deck", userId: user.id, deckId });
+    await invalidateApiCache({ type: "stats", userId: user.id });
+  }, [deckId, user]);
+
   const refresh = useCallback(async () => {
     setPhase("loading");
     setError("");
+    const timezone = clientTimezone();
+    const path = sessionPath(timezone);
+    const cacheKey = user ? apiCacheKey(user.id, "GET", path) : null;
     try {
-      const fresh = await api<StudySession>(
-        `/api/decks/${deckId}/session?type=${type}&timezone=${encodeURIComponent(clientTimezone())}`,
-      );
+      const pending = await countPendingOutbox(key).catch(() => 0);
+      const conflicted = await countConflictedOutboxForSession(key).catch(() => 0);
+      const cached = cacheKey && pending === 0 && conflicted === 0
+        ? await readApiCache<StudySession>(cacheKey)
+        : null;
+      if (cached) {
+        const stored = toStoredSession(cached);
+        await saveStoredSession(stored);
+        applySession(stored);
+        setPendingCount(0);
+        setSyncStatus(onlineRef.current ? "pending" : "offline");
+        setPhase(stored.order.length > 0 ? "front" : "done");
+      }
+
+      const fresh = await api<StudySession>(path);
       const stored = toStoredSession(fresh);
       await saveStoredSession(stored);
+      await writeSessionCache(stored);
       applySession(stored);
-      const pending = await countPendingOutbox(stored.key);
-      setPendingCount(pending);
+      const pendingFresh = await countPendingOutbox(stored.key);
+      setPendingCount(pendingFresh);
       setSyncStatus(onlineRef.current ? "online" : "offline");
       setPhase(stored.order.length > 0 ? "front" : "done");
     } catch (err) {
@@ -120,7 +183,7 @@ export function useOfflineSession(
       setError(apiErrorMessage(err, language, t("error")));
       setPhase("error");
     }
-  }, [applySession, deckId, key, language, t, type]);
+  }, [applySession, key, language, sessionPath, t, user, writeSessionCache]);
 
   const syncPendingRef = useRef<() => Promise<void>>(async () => {});
 
@@ -134,6 +197,53 @@ export function useOfflineSession(
       }
     }, backoff);
   }, []);
+
+  const scheduleSync = useCallback(() => {
+    if (flushTimerRef.current !== null) {
+      clearTimeout(flushTimerRef.current);
+    }
+    void countPendingOutbox(key).then((count) => {
+      if (count >= OUTBOX_BATCH_SIZE) {
+        if (onlineRef.current) void syncPendingRef.current();
+        return;
+      }
+      flushTimerRef.current = setTimeout(() => {
+        flushTimerRef.current = null;
+        if (onlineRef.current) void syncPendingRef.current();
+      }, SYNC_FLUSH_DELAY_MS);
+    });
+  }, [key]);
+
+  const applyAcceptedToSession = useCallback(
+    async (entry: OutboxEntry, response: AnswerResponse) => {
+      const current = sessionRef.current;
+      if (!current) return;
+      let order = current.order.filter((id) => id !== entry.cardId);
+      if (response.nextCardId !== null && response.nextCardId !== order[0] && order.includes(response.nextCardId)) {
+        order = [response.nextCardId, ...order.filter((id) => id !== response.nextCardId)];
+      }
+      if (response.completed) {
+        order = [];
+      }
+      const next: StoredSession = {
+        ...current,
+        order,
+        lastSyncedAt: new Date().toISOString(),
+        lastClientAnswerIds: {
+          ...current.lastClientAnswerIds,
+          [String(entry.cardId)]: entry.clientAnswerId,
+        },
+      };
+      await updateStoredSession(current.key, {
+        order: next.order,
+        lastSyncedAt: next.lastSyncedAt,
+        lastClientAnswerIds: next.lastClientAnswerIds,
+      });
+      applySession(next);
+      await writeSessionCache(next);
+    },
+    [applySession, writeSessionCache],
+  );
 
   const submitOutboxEntry = useCallback(async (entry: OutboxEntry): Promise<SubmitOutcome> => {
     try {
@@ -158,33 +268,9 @@ export function useOfflineSession(
         return "error";
       }
 
-      const current = sessionRef.current;
-      if (current) {
-        let order = current.order.filter((id) => id !== entry.cardId);
-        if (response.nextCardId !== null && response.nextCardId !== order[0] && order.includes(response.nextCardId)) {
-          order = [response.nextCardId, ...order.filter((id) => id !== response.nextCardId)];
-        }
-        if (response.completed) {
-          order = [];
-        }
-        const next: StoredSession = {
-          ...current,
-          order,
-          lastSyncedAt: new Date().toISOString(),
-          lastClientAnswerIds: {
-            ...current.lastClientAnswerIds,
-            [String(entry.cardId)]: entry.clientAnswerId,
-          },
-        };
-        await updateStoredSession(current.key, {
-          order: next.order,
-          lastSyncedAt: next.lastSyncedAt,
-          lastClientAnswerIds: next.lastClientAnswerIds,
-        });
-        applySession(next);
-      }
-
+      await applyAcceptedToSession(entry, response);
       await markOutboxAccepted(entry.clientAnswerId);
+      await invalidateAfterAnswer();
       return "accepted";
     } catch (err) {
       if (err instanceof ApiError && (err.code === "queue_refresh" || err.code === "queue_conflict")) {
@@ -195,8 +281,89 @@ export function useOfflineSession(
       }
       return "network";
     }
-  }, [applySession]);
+  }, [applyAcceptedToSession, invalidateAfterAnswer]);
 
+  const toBatchItem = useCallback(
+    (entry: OutboxEntry): AnswerBatchItemRequest => ({
+      clientAnswerId: entry.clientAnswerId,
+      cardId: entry.cardId,
+      result: entry.result,
+      stateVersion: entry.stateVersion,
+      previousClientAnswerId: entry.previousClientAnswerId,
+      graduate: entry.graduate,
+      confirmForget: entry.confirmForget,
+    }),
+    [],
+  );
+
+  const syncPendingBatch = useCallback(async (current: StoredSession, pending: OutboxEntry[]): Promise<boolean> => {
+    const chunks = chunkOutboxEntries(pending, OUTBOX_BATCH_SIZE);
+    for (const chunk of chunks) {
+      if (!onlineRef.current) {
+        setSyncStatus("offline");
+        return true;
+      }
+      let response: AnswerBatchResponse;
+      try {
+        response = await api<AnswerBatchResponse>("/api/answer/batch", {
+          method: "POST",
+          idempotent: true,
+          retry: { maxRetries: 1, backoffMs: 500 },
+          body: JSON.stringify({
+            deckId: current.deckId,
+            queueType: current.type,
+            timezone: current.timezone,
+            items: chunk.map(toBatchItem),
+          }),
+        });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          setError(t("error"));
+          setPhase("error");
+          return true;
+        }
+        setPendingCount(await countPendingOutbox(current.key));
+        setSyncStatus("pending");
+        scheduleRetry(chunk[0]?.attempts ?? 0);
+        return true;
+      }
+
+      let conflict = false;
+      for (const result of response.results) {
+        const entry = chunk.find((item) => item.clientAnswerId === result.clientAnswerId);
+        if (!entry) continue;
+        if (result.accepted) {
+          await applyAcceptedToSession(entry, {
+            cardId: result.cardId,
+            clientAnswerId: result.clientAnswerId,
+            accepted: true,
+            nextCardId: result.nextCardId,
+            completed: result.completed,
+            requiresConfirmation: result.requiresConfirmation,
+          });
+          await markOutboxAccepted(entry.clientAnswerId);
+          await invalidateAfterAnswer();
+          continue;
+        }
+        if (result.code === "queue_refresh" || result.code === "queue_conflict" || result.code === "confirmation_required") {
+          await markOutboxConflicted(entry.clientAnswerId);
+          conflict = true;
+          continue;
+        }
+        setError(t("error"));
+        setPhase("error");
+        return true;
+      }
+
+      if (conflict) {
+        setSyncStatus("conflict");
+        setPhase("conflict");
+        return true;
+      }
+    }
+    await invalidateAfterAnswer();
+    return false;
+  }, [applyAcceptedToSession, invalidateAfterAnswer, scheduleRetry, t, toBatchItem]);
   const syncPending = useCallback(async () => {
     const current = sessionRef.current;
     if (!current || syncingRef.current || !onlineRef.current) {
@@ -213,28 +380,33 @@ export function useOfflineSession(
         return;
       }
 
-      for (const entry of pending) {
-        const outcome = await submitOutboxEntry(entry);
-        if (outcome === "accepted") {
+      if (!USE_BATCH_ANSWER_API) {
+        for (const entry of pending) {
+          const outcome = await submitOutboxEntry(entry);
+          if (outcome === "accepted") {
+            setPendingCount(await countPendingOutbox(current.key));
+            continue;
+          }
+          if (outcome === "conflict") {
+            await markOutboxConflicted(entry.clientAnswerId);
+            setPendingCount(await countPendingOutbox(current.key));
+            setSyncStatus("conflict");
+            setPhase("conflict");
+            return;
+          }
+          if (outcome === "error") {
+            setError(t("error"));
+            setPhase("error");
+            return;
+          }
           setPendingCount(await countPendingOutbox(current.key));
-          continue;
-        }
-        if (outcome === "conflict") {
-          await markOutboxConflicted(entry.clientAnswerId);
-          setPendingCount(await countPendingOutbox(current.key));
-          setSyncStatus("conflict");
-          setPhase("conflict");
+          setSyncStatus("pending");
+          scheduleRetry(entry.attempts);
           return;
         }
-        if (outcome === "error") {
-          setError(t("error"));
-          setPhase("error");
-          return;
-        }
-        setPendingCount(await countPendingOutbox(current.key));
-        setSyncStatus("pending");
-        scheduleRetry(entry.attempts);
-        return;
+      } else {
+        const shouldStop = await syncPendingBatch(current, pending);
+        if (shouldStop) return;
       }
 
       const latest = sessionRef.current;
@@ -250,7 +422,7 @@ export function useOfflineSession(
     } finally {
       syncingRef.current = false;
     }
-  }, [applySession, scheduleRetry, submitOutboxEntry, t]);
+  }, [applySession, scheduleRetry, submitOutboxEntry, syncPendingBatch, t]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/immutability -- ref intentionally tracks the latest sync callback
@@ -293,6 +465,9 @@ export function useOfflineSession(
     return () => {
       if (retryTimerRef.current !== null) {
         clearTimeout(retryTimerRef.current);
+      }
+      if (flushTimerRef.current !== null) {
+        clearTimeout(flushTimerRef.current);
       }
     };
   }, []);
@@ -385,14 +560,14 @@ export function useOfflineSession(
 
       if (onlineRef.current) {
         setSyncStatus("syncing");
-        void syncPendingRef.current();
+        scheduleSync();
         setPhase(next.order.length > 0 ? "leaving" : "done");
       } else {
         setSyncStatus("pending");
         setPhase(next.order.length > 0 ? "leaving" : "done");
       }
     },
-    [applySession, phase, t, type],
+    [applySession, phase, scheduleSync, t, type],
   );
 
   const card = useMemo(() => {

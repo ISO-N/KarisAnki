@@ -21,8 +21,10 @@ import jakarta.validation.Valid;
 
 import top.kariscode.karisanki.security.UserPrincipal;
 import top.kariscode.karisanki.service.AuthService;
+import top.kariscode.karisanki.service.CardService;
 import top.kariscode.karisanki.service.DeckService;
 import top.kariscode.karisanki.service.TimeService;
+import top.kariscode.karisanki.web.dto.CardDtos;
 import top.kariscode.karisanki.web.dto.DeckDtos;
 
 @RestController
@@ -30,11 +32,14 @@ import top.kariscode.karisanki.web.dto.DeckDtos;
 public class DeckController {
 
 	private final DeckService deckService;
+	private final CardService cardService;
 	private final AuthService authService;
 	private final TimeService timeService;
 
-	public DeckController(DeckService deckService, AuthService authService, TimeService timeService) {
+	public DeckController(DeckService deckService, CardService cardService, AuthService authService,
+			TimeService timeService) {
 		this.deckService = deckService;
+		this.cardService = cardService;
 		this.authService = authService;
 		this.timeService = timeService;
 	}
@@ -43,6 +48,18 @@ public class DeckController {
 	public List<DeckDtos.DeckResponse> list(@AuthenticationPrincipal UserPrincipal principal,
 			@RequestParam(defaultValue = "UTC") String timezone) {
 		return deckService.list(principal.id(), learningDay(principal.id(), timezone));
+	}
+
+	@GetMapping("/{deckId}")
+	public DeckDtos.DeckOverviewResponse overview(@AuthenticationPrincipal UserPrincipal principal,
+			@PathVariable Long deckId,
+			@RequestParam(defaultValue = "UTC") String timezone,
+			@RequestParam(required = false) String q,
+			@RequestParam(required = false) String status,
+			@RequestParam(defaultValue = "0") int page) {
+		DeckDtos.DeckResponse deck = deckService.get(principal.id(), deckId, learningDay(principal.id(), timezone));
+		CardDtos.CardListResponse cards = cardService.list(principal.id(), deckId, q, status, page);
+		return new DeckDtos.DeckOverviewResponse(deck, cards);
 	}
 
 	@PostMapping

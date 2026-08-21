@@ -4,13 +4,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,10 +35,11 @@ public class StatisticsService {
 	private final DueStateService dueStateService;
 	private final TimeService timeService;
 	private final ScheduleEngine scheduleEngine;
+	private final StatisticsCacheService statisticsCacheService;
 
 	public StatisticsService(AuthService authService, AnswerEventRepository answerEventRepository,
 			CardStateRepository cardStateRepository, DeckRepository deckRepository, DueStateService dueStateService,
-			TimeService timeService, ScheduleEngine scheduleEngine) {
+			TimeService timeService, ScheduleEngine scheduleEngine, StatisticsCacheService statisticsCacheService) {
 		this.authService = authService;
 		this.answerEventRepository = answerEventRepository;
 		this.cardStateRepository = cardStateRepository;
@@ -50,6 +47,7 @@ public class StatisticsService {
 		this.dueStateService = dueStateService;
 		this.timeService = timeService;
 		this.scheduleEngine = scheduleEngine;
+		this.statisticsCacheService = statisticsCacheService;
 	}
 
 	@Transactional
@@ -59,6 +57,12 @@ public class StatisticsService {
 		LocalDate learningDay = timeService.learningDay(settings.getRefreshTime(), timezone, now);
 		LocalDate tomorrow = learningDay.plusDays(1);
 		dueStateService.markDueStates(userId, learningDay, now);
+
+		StatisticsResponse cached = statisticsCacheService.get(userId, deckId, timezone);
+		if (cached != null) {
+			return cached;
+		}
+
 		List<AnswerEvent> events = deckId == null
 				? answerEventRepository.findByUserIdOrderByAnsweredAtAsc(userId)
 				: answerEventRepository.findByUserIdAndDeckIdOrderByAnsweredAtAsc(userId, deckId);
@@ -98,8 +102,10 @@ public class StatisticsService {
 				.map(deck -> new DeckOptionResponse(deck.getId(), deck.getName(), deck.getDeletedAt() != null))
 				.toList();
 
-		return new StatisticsResponse(learningDay, learnedToday, reviewedToday, tomorrowDue, relearnCount,
-				stageDistribution, resultCounts, retentionRate, hourlyDistribution, forecast, deckOptions);
+		StatisticsResponse response = new StatisticsResponse(learningDay, learnedToday, reviewedToday, tomorrowDue,
+				relearnCount, stageDistribution, resultCounts, retentionRate, hourlyDistribution, forecast, deckOptions);
+		statisticsCacheService.put(userId, deckId, timezone, response);
+		return response;
 	}
 
 	private long countTomorrowDue(List<CardState> states, LocalDate tomorrow) {

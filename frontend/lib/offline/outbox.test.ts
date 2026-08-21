@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sortOutboxEntries } from "./outbox";
+import { chunkOutboxEntries, sortOutboxEntries } from "./outbox";
 import type { OutboxEntry } from "./types";
 
 function entry(id: string, createdAt: number): OutboxEntry {
@@ -36,5 +36,21 @@ describe("sortOutboxEntries", () => {
     const entries = [entry("b", 2), entry("a", 1)];
     sortOutboxEntries(entries);
     expect(entries.map((item) => item.clientAnswerId)).toEqual(["b", "a"]);
+  });
+});
+
+describe("chunkOutboxEntries", () => {
+  it("splits pending entries into batches of twenty", () => {
+    const entries = Array.from({ length: 45 }, (_, index) => entry(`id-${index}`, index));
+    const chunks = chunkOutboxEntries(entries);
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0]).toHaveLength(20);
+    expect(chunks[1]).toHaveLength(20);
+    expect(chunks[2]).toHaveLength(5);
+  });
+
+  it("honors an explicit batch size", () => {
+    const entries = [entry("a", 1), entry("b", 2), entry("c", 3)];
+    expect(chunkOutboxEntries(entries, 2).map((chunk) => chunk.length)).toEqual([2, 1]);
   });
 });

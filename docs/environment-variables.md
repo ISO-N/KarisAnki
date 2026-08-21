@@ -68,3 +68,7 @@ KARISANKI_REGISTRATION_ENABLED=true
 | `PORT` | `3000` | Compose 暴露的宿主机端口 |
 | `APP_IMAGE` | `ghcr.io/iso-n/karisanki:latest` | `docker-compose.yml` 拉取的 GHCR 镜像；fork 或私有镜像时覆盖 |
 | `HOSTNAME` | `0.0.0.0` | 前端容器内绑定的地址 |
+
+## 网络性能说明
+
+批量同步、API 缓存和统计缓存没有新增部署变量。批量接口单批上限为 50 条，前端按 20 条分组；统计缓存 TTL 固定为 30 秒；这些参数在实现中作为常量维护。

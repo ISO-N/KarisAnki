@@ -66,11 +66,51 @@ export async function listPendingOutboxForSession(sessionKey: string): Promise<O
   return entries.filter((entry) => entry.sessionKey === sessionKey);
 }
 
+export const OUTBOX_BATCH_SIZE = 20;
+
+export function chunkOutboxEntries(entries: OutboxEntry[], maxBatchSize = OUTBOX_BATCH_SIZE): OutboxEntry[][] {
+  const chunks: OutboxEntry[][] = [];
+  for (let index = 0; index < entries.length; index += maxBatchSize) {
+    chunks.push(entries.slice(index, index + maxBatchSize));
+  }
+  return chunks;
+}
+
+export async function listPendingOutboxChunks(maxBatchSize = OUTBOX_BATCH_SIZE): Promise<OutboxEntry[][]> {
+  const pending = await listPendingOutbox();
+  const bySession = new Map<string, OutboxEntry[]>();
+  for (const entry of pending) {
+    const current = bySession.get(entry.sessionKey) ?? [];
+    current.push(entry);
+    bySession.set(entry.sessionKey, current);
+  }
+  const chunks: OutboxEntry[][] = [];
+  for (const entries of bySession.values()) {
+    chunks.push(...chunkOutboxEntries(entries, maxBatchSize));
+  }
+  return chunks;
+}
+
+export async function listPendingOutboxForSessionChunks(
+  sessionKey: string,
+  maxBatchSize = OUTBOX_BATCH_SIZE,
+): Promise<OutboxEntry[][]> {
+  return chunkOutboxEntries(await listPendingOutboxForSession(sessionKey), maxBatchSize);
+}
+
 export async function countPendingOutbox(sessionKey?: string): Promise<number> {
   const entries = sessionKey
     ? await listPendingOutboxForSession(sessionKey)
     : await listPendingOutbox();
   return entries.length;
+}
+
+export async function countConflictedOutboxForSession(sessionKey: string): Promise<number> {
+  const db = await openDatabase();
+  const transaction = db.transaction("outbox", "readonly");
+  const entries = (await requestResult(transaction.objectStore("outbox").getAll())) as OutboxEntry[];
+  await transactionDone(transaction);
+  return entries.filter((entry) => entry.sessionKey === sessionKey && entry.status === "CONFLICTED").length;
 }
 
 export async function latestPendingForCard(
