@@ -4,12 +4,13 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, apiErrorMessage } from "@/lib/api";
-import { AlertCircle, LoaderCircle, LogIn, ShieldCheck, UserPlus } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, LoaderCircle, LogIn, ShieldCheck, UserPlus } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
@@ -22,10 +23,13 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const { t, language } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string; inviteCode?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string; confirmPassword?: string; inviteCode?: string }>({});
   const [busy, setBusy] = useState(false);
   const [registration, setRegistration] = useState<RegistrationStatus | null>(null);
 
@@ -38,12 +42,15 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   }, [isRegister]);
 
   const validate = () => {
-    const next: { email?: string; password?: string; inviteCode?: string } = {};
+    const next: { email?: string; password?: string; confirmPassword?: string; inviteCode?: string } = {};
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       next.email = t("error");
     }
     if (password.length < 8) {
       next.password = t("error");
+    }
+    if (isRegister && password !== confirmPassword) {
+      next.confirmPassword = t("passwordMismatch");
     }
     if (isRegister && !inviteCode.trim()) {
       next.inviteCode = t("error");
@@ -114,18 +121,63 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
               <Field data-invalid={!!fieldErrors.password}>
                 <FieldLabel htmlFor="password">{t("password")}</FieldLabel>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete={isRegister ? "new-password" : "current-password"}
-                  minLength={8}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  aria-invalid={!!fieldErrors.password}
-                  required
-                />
+                <InputGroup>
+                  <InputGroupInput
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete={isRegister ? "new-password" : "current-password"}
+                    minLength={8}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    aria-invalid={!!fieldErrors.password}
+                    required
+                  />
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupButton
+                      type="button"
+                      size="icon-sm"
+                      aria-label={showPassword ? t("hidePassword") : t("showPassword")}
+                      aria-pressed={showPassword}
+                      aria-controls="password"
+                      onClick={() => setShowPassword((value) => !value)}
+                    >
+                      {showPassword ? <EyeOff /> : <Eye />}
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
                 {fieldErrors.password ? <FieldError>{fieldErrors.password}</FieldError> : null}
               </Field>
+
+              {isRegister ? (
+                <Field data-invalid={!!fieldErrors.confirmPassword}>
+                  <FieldLabel htmlFor="confirmPassword">{t("confirmPassword")}</FieldLabel>
+                  <InputGroup>
+                    <InputGroupInput
+                      id="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      minLength={8}
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      aria-invalid={!!fieldErrors.confirmPassword}
+                      required
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupButton
+                        type="button"
+                        size="icon-sm"
+                        aria-label={showConfirmPassword ? t("hidePassword") : t("showPassword")}
+                        aria-pressed={showConfirmPassword}
+                        aria-controls="confirmPassword"
+                        onClick={() => setShowConfirmPassword((value) => !value)}
+                      >
+                        {showConfirmPassword ? <EyeOff /> : <Eye />}
+                      </InputGroupButton>
+                    </InputGroupAddon>
+                  </InputGroup>
+                  {fieldErrors.confirmPassword ? <FieldError>{fieldErrors.confirmPassword}</FieldError> : null}
+                </Field>
+              ) : null}
 
               {isRegister ? (
                 <Field data-invalid={!!fieldErrors.inviteCode}>

@@ -46,6 +46,7 @@ export default function DecksPage() {
   const [message, setMessage] = useState("");
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<Deck | null>(null);
   const [renameName, setRenameName] = useState("");
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
@@ -75,6 +76,7 @@ export default function DecksPage() {
     try {
       await api<Deck>("/api/decks", { method: "POST", body: JSON.stringify({ name: name.trim() }) });
       setName("");
+      setCreateOpen(false);
       setMessage(t("deckCreated"));
       await load();
     } catch (err) {
@@ -134,28 +136,10 @@ export default function DecksPage() {
           title={t("decks")}
           description={`${decks.length} ${t("decks")} · ${totalCards} ${t("due")}`}
           actions={
-            <form onSubmit={createDeck} className="flex w-full max-w-md gap-2">
-              <Field className="flex-1">
-                <FieldLabel htmlFor="deck-name" className="sr-only">
-                  {t("deckName")}
-                </FieldLabel>
-                <Input
-                  id="deck-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder={t("deckName")}
-                  aria-label={t("deckName")}
-                />
-              </Field>
-              <Button type="submit" disabled={creating || !name.trim()}>
-                {creating ? (
-                  <LoaderCircle data-icon="inline-start" className="animate-spin" />
-                ) : (
-                  <Plus data-icon="inline-start" />
-                )}
-                {t("createDeck")}
-              </Button>
-            </form>
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus data-icon="inline-start" />
+              {t("createDeck")}
+            </Button>
           }
         />
 
@@ -178,7 +162,7 @@ export default function DecksPage() {
             title={t("emptyDecks")}
             description={t("dashboardEmptyHint")}
           >
-            <Button onClick={() => document.getElementById("deck-name")?.focus()}>
+            <Button onClick={() => setCreateOpen(true)}>
               <Plus data-icon="inline-start" />
               {t("createDeck")}
             </Button>
@@ -189,79 +173,134 @@ export default function DecksPage() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {decks.map((deck) => (
-              <Card key={deck.id} className="p-4">
-                <CardHeader>
-                  <div className="flex items-start gap-3">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
-                      <Layers className="size-5" aria-hidden="true" />
-                    </span>
-                    <div className="min-w-0">
-                      <CardTitle className="truncate">{deck.name}</CardTitle>
-                      <CardDescription>{t("cards")}</CardDescription>
+              <Card key={deck.id} className="relative p-4 transition-colors focus-within:border-primary/50">
+                <Link
+                  href={`/decks/${deck.id}`}
+                  aria-label={`${deck.name} ${t("openDeck")}`}
+                  className="absolute inset-0 z-0 rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                />
+                <div className="pointer-events-none relative z-10">
+                  <CardHeader>
+                    <div className="flex items-start gap-3">
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
+                        <Layers className="size-5" aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0">
+                        <CardTitle className="truncate">{deck.name}</CardTitle>
+                        <CardDescription>{t("cards")}</CardDescription>
+                      </div>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex flex-wrap gap-2">
-                  <Badge variant="primary">
-                    <Layers data-icon="inline-start" aria-hidden="true" />
-                    {t("newCards")} {deck.newCount}
-                  </Badge>
-                  <Badge variant="warning">
-                    <RefreshCcw data-icon="inline-start" aria-hidden="true" />
-                    {t("relearn")} {deck.relearnCount}
-                  </Badge>
-                  <Badge variant="success">
-                    <CalendarClock data-icon="inline-start" aria-hidden="true" />
-                    {t("due")} {deck.dueCount}
-                  </Badge>
-                </CardContent>
-                <CardAction className="mt-4 flex flex-wrap items-center gap-2">
-                  <Link
-                    href={`/decks/${deck.id}/learn`}
-                    className={cn(buttonVariants({ size: "sm" }), "min-h-11 flex-1")}
-                  >
-                    <BookOpen data-icon="inline-start" />
-                    {t("startLearn")}
-                  </Link>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    aria-label={t("renameDeck")}
-                    title={t("renameDeck")}
-                    onClick={() => {
-                      setRenameTarget(deck);
-                      setRenameName(deck.name);
-                    }}
-                  >
-                    <Pencil />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    aria-label={t("resetDeck")}
-                    title={t("resetDeck")}
-                    onClick={() => setPendingAction({ type: "reset", deck })}
-                  >
-                    <RotateCcw />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon-sm"
-                    aria-label={t("deleteDeck")}
-                    title={t("deleteDeck")}
-                    onClick={() => setPendingAction({ type: "delete", deck })}
-                  >
-                    <Trash2 />
-                  </Button>
-                </CardAction>
+                  </CardHeader>
+                  <CardContent className="flex flex-wrap gap-2">
+                    <Badge variant="primary">
+                      <Layers data-icon="inline-start" aria-hidden="true" />
+                      {t("newCards")} {deck.newCount}
+                    </Badge>
+                    <Badge variant="warning">
+                      <RefreshCcw data-icon="inline-start" aria-hidden="true" />
+                      {t("relearn")} {deck.relearnCount}
+                    </Badge>
+                    <Badge variant="success">
+                      <CalendarClock data-icon="inline-start" aria-hidden="true" />
+                      {t("due")} {deck.dueCount}
+                    </Badge>
+                  </CardContent>
+                  <CardAction className="pointer-events-none mt-4 flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/decks/${deck.id}/learn`}
+                      className={cn(buttonVariants({ size: "sm" }), "pointer-events-auto relative z-20 min-h-11 flex-1")}
+                    >
+                      <BookOpen data-icon="inline-start" />
+                      {t("startLearn")}
+                    </Link>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      className="pointer-events-auto relative z-20"
+                      aria-label={t("renameDeck")}
+                      title={t("renameDeck")}
+                      onClick={() => {
+                        setRenameTarget(deck);
+                        setRenameName(deck.name);
+                      }}
+                    >
+                      <Pencil />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      className="pointer-events-auto relative z-20"
+                      aria-label={t("resetDeck")}
+                      title={t("resetDeck")}
+                      onClick={() => setPendingAction({ type: "reset", deck })}
+                    >
+                      <RotateCcw />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon-sm"
+                      className="pointer-events-auto relative z-20"
+                      aria-label={t("deleteDeck")}
+                      title={t("deleteDeck")}
+                      onClick={() => setPendingAction({ type: "delete", deck })}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </CardAction>
+                </div>
               </Card>
             ))}
           </div>
         )}
       </div>
+
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreateOpen(false);
+            setName("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("createDeckTitle")}</DialogTitle>
+            <DialogDescription>{t("createDeckDescription")}</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={createDeck}>
+            <Field>
+              <FieldLabel htmlFor="create-deck" className="sr-only">
+                {t("deckName")}
+              </FieldLabel>
+              <Input
+                id="create-deck"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder={t("deckName")}
+                aria-label={t("deckName")}
+                autoFocus
+              />
+            </Field>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setCreateOpen(false); setName(""); }}>
+                {t("cancel")}
+              </Button>
+              <Button type="submit" disabled={creating || !name.trim()}>
+                {creating ? (
+                  <LoaderCircle data-icon="inline-start" className="animate-spin" />
+                ) : (
+                  <Plus data-icon="inline-start" />
+                )}
+                {t("createDeck")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={!!renameTarget}
@@ -336,4 +375,3 @@ export default function DecksPage() {
     </RequireAuth>
   );
 }
-
