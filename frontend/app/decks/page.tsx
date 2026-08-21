@@ -1,21 +1,55 @@
 "use client";
-
 /* eslint-disable react-hooks/set-state-in-effect -- fetch-on-mount is an external data sync */
-import { useCallback, useEffect, useState } from "react";
+
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { BookOpen, Layers, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { api, apiErrorMessage, clientTimezone } from "@/lib/api";
+import {
+  BookOpen,
+  CalendarClock,
+  Layers,
+  LoaderCircle,
+  Pencil,
+  Plus,
+  RefreshCcw,
+  RotateCcw,
+  Save,
+  Trash2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Alert, AlertTitle } from "@/components/ui/alert";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
+import { PageHeader } from "@/components/page-header";
 import { RequireAuth } from "@/components/require-auth";
 import { useI18n } from "@/lib/i18n";
 import type { Deck } from "@/lib/types";
+
+type PendingAction =
+  | { type: "delete"; deck: Deck }
+  | { type: "reset"; deck: Deck }
+  | null;
 
 export default function DecksPage() {
   const { t, language } = useI18n();
   const [decks, setDecks] = useState<Deck[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<Deck | null>(null);
+  const [renameName, setRenameName] = useState("");
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [pendingBusy, setPendingBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -33,12 +67,15 @@ export default function DecksPage() {
     load();
   }, [load]);
 
-  const createDeck = async () => {
-    if (!name.trim()) return;
+  const createDeck = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!name.trim() || creating) return;
+    setMessage("");
     setCreating(true);
     try {
-      await api<Deck>("/api/decks", { method: "POST", body: JSON.stringify({ name }) });
+      await api<Deck>("/api/decks", { method: "POST", body: JSON.stringify({ name: name.trim() }) });
       setName("");
+      setMessage(t("deckCreated"));
       await load();
     } catch (err) {
       setError(apiErrorMessage(err, language, t("error")));
@@ -47,135 +84,256 @@ export default function DecksPage() {
     }
   };
 
-  const renameDeck = async (deck: Deck) => {
-    const next = window.prompt(t("deckName"), deck.name);
-    if (!next?.trim() || next.trim() === deck.name) return;
+  const renameDeck = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!renameTarget || !renameName.trim()) return;
+    setMessage("");
     try {
-      await api<Deck>(`/api/decks/${deck.id}`, {
+      await api<Deck>(`/api/decks/${renameTarget.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ name: next.trim() }),
+        body: JSON.stringify({ name: renameName.trim() }),
       });
+      setRenameTarget(null);
+      setMessage(t("deckRenamed"));
       await load();
     } catch (err) {
       setError(apiErrorMessage(err, language, t("error")));
     }
   };
 
-  const deleteDeck = async (deck: Deck) => {
-    if (!window.confirm(t("confirmDelete"))) return;
+  const runPendingAction = async () => {
+    if (!pendingAction || pendingBusy) return;
+    const { deck } = pendingAction;
+    setPendingBusy(true);
+    setMessage("");
     try {
-      await api<void>(`/api/decks/${deck.id}`, { method: "DELETE" });
+      if (pendingAction.type === "delete") {
+        await api<void>(`/api/decks/${deck.id}`, { method: "DELETE" });
+        setMessage(t("deckDeleted"));
+      } else {
+        await api<void>(`/api/decks/${deck.id}/reset?timezone=${encodeURIComponent(clientTimezone())}`, {
+          method: "POST",
+        });
+        setMessage(t("deckReset"));
+      }
+      setPendingAction(null);
       await load();
     } catch (err) {
       setError(apiErrorMessage(err, language, t("error")));
+    } finally {
+      setPendingBusy(false);
     }
   };
 
-  const resetDeck = async (deck: Deck) => {
-    if (!window.confirm(t("confirmReset"))) return;
-    try {
-      await api<void>(`/api/decks/${deck.id}/reset?timezone=${encodeURIComponent(clientTimezone())}`, {
-        method: "POST",
-      });
-      await load();
-    } catch (err) {
-      setError(apiErrorMessage(err, language, t("error")));
-    }
-  };
+  const totalCards = decks.reduce((sum, deck) => sum + deck.newCount + deck.relearnCount + deck.dueCount, 0);
 
   return (
     <RequireAuth>
-      <div className="space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight sm:text-3xl">{t("decks")}</h1>
-            <p className="mt-1 text-sm text-muted">{decks.length} {t("cards")}</p>
-          </div>
-          <div className="flex w-full max-w-md gap-2">
-            <input
-              className="input"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              onKeyDown={(event) => event.key === "Enter" && createDeck()}
-              placeholder={t("deckName")}
-            />
-            <button className="btn btn-primary shrink-0" onClick={createDeck} disabled={creating || !name.trim()}>
-              <Plus size={17} /> {t("createDeck")}
-            </button>
-          </div>
-        </div>
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          title={t("decks")}
+          description={`${decks.length} ${t("decks")} · ${totalCards} ${t("due")}`}
+          actions={
+            <form onSubmit={createDeck} className="flex w-full max-w-md gap-2">
+              <Field className="flex-1">
+                <FieldLabel htmlFor="deck-name" className="sr-only">
+                  {t("deckName")}
+                </FieldLabel>
+                <Input
+                  id="deck-name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder={t("deckName")}
+                  aria-label={t("deckName")}
+                />
+              </Field>
+              <Button type="submit" disabled={creating || !name.trim()}>
+                {creating ? (
+                  <LoaderCircle data-icon="inline-start" className="animate-spin" />
+                ) : (
+                  <Plus data-icon="inline-start" />
+                )}
+                {t("createDeck")}
+              </Button>
+            </form>
+          }
+        />
 
-        {error && <div className="rounded-lg bg-danger-soft p-3 text-sm font-medium text-danger">{error}</div>}
+        {message ? (
+          <Alert role="status">
+            <AlertTitle>{message}</AlertTitle>
+          </Alert>
+        ) : null}
+
+        {error && !loading ? <ErrorState title={t("error")} description={error} onRetry={load} retryLabel={t("retry")} /> : null}
 
         {loading ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 3 }).map((_, index) => (
-              <div key={index} className="card h-36 animate-pulse" />
+              <Skeleton key={index} className="h-44" />
             ))}
           </div>
-        ) : error && decks.length === 0 ? (
-          <div className="empty">
-            <p>{error}</p>
-            <button className="btn btn-primary mt-4" onClick={load}>
-              <RotateCcw size={16} /> {t("retry")}
-            </button>
-          </div>
-        ) : decks.length === 0 ? (
-          <div className="empty">{t("emptyDecks")}</div>
+        ) : decks.length === 0 && !error ? (
+          <EmptyState
+            title={t("emptyDecks")}
+            description={t("dashboardEmptyHint")}
+          >
+            <Button onClick={() => document.getElementById("deck-name")?.focus()}>
+              <Plus data-icon="inline-start" />
+              {t("createDeck")}
+            </Button>
+            <Link href="/statistics" className={buttonVariants({ variant: "outline" })}>
+              {t("statistics")}
+            </Link>
+          </EmptyState>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {decks.map((deck) => (
-              <div key={deck.id} className="card flex flex-col gap-4 p-4">
-                <Link href={`/decks/${deck.id}`} className="group flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent">
-                      <Layers size={18} />
+              <Card key={deck.id} className="p-4">
+                <CardHeader>
+                  <div className="flex items-start gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
+                      <Layers className="size-5" aria-hidden="true" />
                     </span>
                     <div className="min-w-0">
-                      <h2 className="truncate text-base font-bold group-hover:text-accent">{deck.name}</h2>
-                      <p className="text-xs text-muted">{t("cards")}</p>
+                      <CardTitle className="truncate">{deck.name}</CardTitle>
+                      <CardDescription>{t("cards")}</CardDescription>
                     </div>
                   </div>
-                </Link>
-                <div className="flex flex-wrap gap-2">
-                  <span className="badge badge-accent">{t("newCards")} {deck.newCount}</span>
-                  <span className="badge badge-warning">{t("relearn")} {deck.relearnCount}</span>
-                  <span className="badge badge-success">{t("due")} {deck.dueCount}</span>
-                </div>
-                <div className="mt-auto flex items-center gap-2">
-                  <Link href={`/decks/${deck.id}/learn`} className="btn btn-primary flex-1">
-                    <BookOpen size={16} /> {t("startLearn")}
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  <Badge variant="primary">
+                    <Layers data-icon="inline-start" aria-hidden="true" />
+                    {t("newCards")} {deck.newCount}
+                  </Badge>
+                  <Badge variant="warning">
+                    <RefreshCcw data-icon="inline-start" aria-hidden="true" />
+                    {t("relearn")} {deck.relearnCount}
+                  </Badge>
+                  <Badge variant="success">
+                    <CalendarClock data-icon="inline-start" aria-hidden="true" />
+                    {t("due")} {deck.dueCount}
+                  </Badge>
+                </CardContent>
+                <CardAction className="mt-4 flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`/decks/${deck.id}/learn`}
+                    className={cn(buttonVariants({ size: "sm" }), "min-h-11 flex-1")}
+                  >
+                    <BookOpen data-icon="inline-start" />
+                    {t("startLearn")}
                   </Link>
-                  <button
-                    className="icon-btn"
-                    title={t("renameDeck")}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
                     aria-label={t("renameDeck")}
-                    onClick={() => renameDeck(deck)}
+                    title={t("renameDeck")}
+                    onClick={() => {
+                      setRenameTarget(deck);
+                      setRenameName(deck.name);
+                    }}
                   >
-                    <Pencil size={16} />
-                  </button>
-                  <button
-                    className="icon-btn"
-                    title={t("resetDeck")}
+                    <Pencil />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
                     aria-label={t("resetDeck")}
-                    onClick={() => resetDeck(deck)}
+                    title={t("resetDeck")}
+                    onClick={() => setPendingAction({ type: "reset", deck })}
                   >
-                    <RotateCcw size={16} />
-                  </button>
-                  <button
-                    className="icon-btn text-danger"
-                    title={t("deleteDeck")}
+                    <RotateCcw />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon-sm"
                     aria-label={t("deleteDeck")}
-                    onClick={() => deleteDeck(deck)}
+                    title={t("deleteDeck")}
+                    onClick={() => setPendingAction({ type: "delete", deck })}
                   >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
+                    <Trash2 />
+                  </Button>
+                </CardAction>
+              </Card>
             ))}
           </div>
         )}
       </div>
+
+      <Dialog
+        open={!!renameTarget}
+        onOpenChange={(open) => {
+          if (!open) setRenameTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("confirmRenameTitle")}</DialogTitle>
+            <DialogDescription>{t("renameDeckName")}</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={renameDeck}>
+            <Field>
+              <FieldLabel htmlFor="rename-deck" className="sr-only">
+                {t("renameDeckName")}
+              </FieldLabel>
+              <Input
+                id="rename-deck"
+                value={renameName}
+                onChange={(event) => setRenameName(event.target.value)}
+                autoFocus
+              />
+            </Field>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setRenameTarget(null)}>
+                {t("cancel")}
+              </Button>
+              <Button type="submit" disabled={!renameName.trim()}>
+                <Save />
+                {t("save")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={!!pendingAction}
+        onOpenChange={(open) => {
+          if (!open) setPendingAction(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingAction?.type === "delete" ? t("confirmDeleteTitle") : t("confirmResetTitle")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingAction?.type === "delete"
+                ? t("confirmDeleteDeckDescription")
+                : t("confirmResetDeckDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingAction(null)}>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              variant={pendingAction?.type === "delete" ? "destructive" : "default"}
+              onClick={runPendingAction}
+              disabled={pendingBusy}
+            >
+              {pendingBusy ? (
+                <LoaderCircle data-icon="inline-start" className="animate-spin" />
+              ) : (
+                <Trash2 data-icon="inline-start" />
+              )}
+              {t("confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </RequireAuth>
   );
 }
+

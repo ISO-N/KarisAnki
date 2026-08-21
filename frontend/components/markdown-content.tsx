@@ -63,7 +63,7 @@ const schema = {
 
 export function MarkdownContent({ content }: { content: string }) {
   if (!content?.trim()) {
-    return <span className="text-muted">—</span>;
+    return <span className="text-muted-foreground">—</span>;
   }
   return (
     <div className="markdown-body">

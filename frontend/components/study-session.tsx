@@ -1,29 +1,57 @@
 "use client";
-
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/immutability -- queue loading and skipped-card recursion are external data syncs */
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Eye, RotateCcw, Sparkles } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { CheckCircle2, Eye, LoaderCircle, RotateCcw } from "lucide-react";
 import { api, ApiError, apiErrorMessage, clientTimezone } from "@/lib/api";
 import { RequireAuth } from "@/components/require-auth";
-import { MarkdownContent } from "@/components/markdown-content";
 import { useI18n } from "@/lib/i18n";
-import type { AnswerResponse, AnswerResult, Card, Queue } from "@/lib/types";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
+import { RatingBar } from "@/components/rating-bar";
+import { ReviewCard } from "@/components/review-card";
+import { SessionHeader } from "@/components/session-header";
+import { cn } from "@/lib/utils";
+import type { AnswerResponse, AnswerResult, Card as StudyCard, Queue } from "@/lib/types";
 
-type Phase = "loading" | "front" | "answer" | "graduate" | "confirmForget" | "done" | "error";
+type Phase =
+  | "loading"
+  | "front"
+  | "answer"
+  | "submitting"
+  | "leaving"
+  | "entering"
+  | "graduate"
+  | "confirmForget"
+  | "done"
+  | "error";
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" | "REVIEW" }) {
   const { t, language } = useI18n();
   const [phase, setPhase] = useState<Phase>("loading");
   const [queue, setQueue] = useState<number[]>([]);
-  const [card, setCard] = useState<Card | null>(null);
+  const [card, setCard] = useState<StudyCard | null>(null);
+  const [selected, setSelected] = useState<AnswerResult | null>(null);
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [total, setTotal] = useState(0);
-  const loadCard = useCallback(async (cardId: number, candidates: number[] = []) => {
+
+  const loadCard = useCallback(async (cardId: number, candidates: number[] = [], transition = false) => {
     try {
-      const next = await api<Card>(`/api/cards/${cardId}`);
+      const next = await api<StudyCard>(`/api/cards/${cardId}`);
       setCard(next);
+      if (transition) {
+        setPhase("entering");
+        await wait(160);
+      }
       setPhase("front");
       return true;
     } catch (err) {
@@ -31,9 +59,10 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
         if (candidates.length > 1) {
           const nextCandidates = candidates.slice(1);
           setQueue(nextCandidates);
-          return loadCard(nextCandidates[0], nextCandidates);
+          return loadCard(nextCandidates[0], nextCandidates, false);
         }
         setQueue([]);
+        setCard(null);
         setPhase("done");
         return false;
       }
@@ -42,17 +71,21 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
   }, []);
 
   const loadQueue = useCallback(async () => {
+    setPhase("loading");
+    setError("");
     try {
       const data = await api<Queue>(
         `/api/decks/${deckId}/queue?type=${type}&timezone=${encodeURIComponent(clientTimezone())}`,
       );
       setQueue(data.cardIds);
       setTotal(data.cardIds.length);
+      setSelected(null);
       if (data.cardIds.length === 0) {
+        setCard(null);
         setPhase("done");
         return;
       }
-      await loadCard(data.cardIds[0], data.cardIds);
+      await loadCard(data.cardIds[0], data.cardIds, true);
     } catch (err) {
       setError(apiErrorMessage(err, language, t("error")));
       setPhase("error");
@@ -65,8 +98,9 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
 
   const submit = useCallback(
     async (result: AnswerResult, extra?: { graduate?: boolean; confirmForget?: boolean }) => {
-      if (!card || submitting) return;
-      setSubmitting(true);
+      if (!card || phase === "submitting" || phase === "leaving") return;
+      setSelected(result);
+      setPhase("submitting");
       try {
         const response = await api<AnswerResponse>("/api/answer", {
           method: "POST",
@@ -82,23 +116,28 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
         });
         setQueue(response.queue);
         if (response.queue.length === 0) {
+          setCard(null);
           setPhase("done");
           return;
         }
-        await loadCard(response.queue[0], response.queue);
+        setPhase("leaving");
+        await wait(140);
+        await loadCard(response.queue[0], response.queue, true);
+        setSelected(null);
       } catch (err) {
         if (err instanceof ApiError && err.code === "confirmation_required") {
           setPhase("confirmForget");
+          setSelected(null);
           return;
         }
         if (err instanceof ApiError && (err.code === "queue_conflict" || err.code === "queue_refresh")) {
-          setPhase("loading");
-          await loadQueue();
+          setError(apiErrorMessage(err, language, t("error")));
+          setPhase("error");
           return;
         }
         if (err instanceof ApiError && err.status === 404) {
-          setPhase("loading");
-          await loadQueue();
+          setError(apiErrorMessage(err, language, t("error")));
+          setPhase("error");
           return;
         }
         if (err instanceof ApiError && err.status === 401) {
@@ -108,36 +147,36 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
         }
         setError(apiErrorMessage(err, language, t("error")));
         setPhase("error");
-      } finally {
-        setSubmitting(false);
       }
     },
-    [card, type, loadCard, loadQueue, language, submitting, t],
+    [card, type, loadCard, language, phase, t],
   );
 
   const chooseResult = useCallback(
     (result: AnswerResult) => {
-      if (!card) return;
+      if (!card || phase === "submitting" || phase === "leaving") return;
       if (result === "FAMILIAR" && card.stage === 8 && card.status !== "relearn") {
+        setSelected(result);
         setPhase("graduate");
         return;
       }
       if (result === "FORGOT" && card.status === "relearn" && card.relearnMode === "BLURRY") {
+        setSelected(result);
         setPhase("confirmForget");
         return;
       }
-      submit(result);
+      void submit(result);
     },
-    [card, submit],
+    [card, phase, submit],
   );
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === " " || event.code === "Space") {
-        if (phase === "front") {
-          event.preventDefault();
-          setPhase("answer");
-        }
+      const target = event.target as HTMLElement | null;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      if ((event.key === " " || event.code === "Space") && phase === "front") {
+        event.preventDefault();
+        setPhase("answer");
         return;
       }
       if (phase === "answer" && event.key === "1") chooseResult("FAMILIAR");
@@ -149,128 +188,138 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
   }, [phase, chooseResult]);
 
   const remaining = useMemo(() => Math.max(0, queue.length), [queue.length]);
+  const statusLabel = phase === "loading" ? t("queueLoading") : type === "LEARN" ? t("startLearn") : t("startReview");
 
   return (
     <RequireAuth>
-      <div className="mx-auto flex min-h-[calc(100vh-10rem)] max-w-3xl flex-col">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <Link href={`/decks/${deckId}`} className="inline-flex items-center gap-1 text-sm font-semibold text-muted hover:text-foreground">
-            <ChevronLeft size={16} /> {t("back")}
-          </Link>
-          <span className="text-sm font-semibold text-muted">
-            {phase === "done" ? t("queueDone") : `${remaining} / ${total}`}
-          </span>
-        </div>
+      <div className="review-viewport">
+        <SessionHeader
+          backHref={`/decks/${deckId}`}
+          backLabel={t("back")}
+          progressLabel={t("progressLabel")}
+          remaining={remaining}
+          total={total}
+          statusLabel={statusLabel}
+        />
 
-        {phase === "loading" && (
-          <div className="flex flex-1 items-center justify-center text-muted">
-            <span className="h-7 w-7 animate-spin rounded-full border-2 border-line border-t-accent" />
-          </div>
-        )}
+        {phase === "loading" ? (
+          <Skeleton className="min-h-[52vh] flex-1" />
+        ) : null}
 
-        {phase === "done" && (
-          <div className="empty my-auto">
-            <Sparkles className="mx-auto mb-3 text-accent" size={28} />
-            <h2 className="text-lg font-bold text-foreground">{t("queueDone")}</h2>
-            <p className="mt-1 text-sm">{t("queueEmpty")}</p>
-            <div className="mt-4 flex justify-center gap-2">
-              <Link href={`/decks/${deckId}`} className="btn btn-primary">{t("back")}</Link>
-              <button className="btn btn-secondary" onClick={loadQueue}>
-                <RotateCcw size={16} /> {t("reset")}
-              </button>
-            </div>
-          </div>
-        )}
+        {phase === "error" ? (
+          <ErrorState
+            title={t("error")}
+            description={error}
+            onRetry={loadQueue}
+            retryLabel={t("retry")}
+          />
+        ) : null}
 
-        {phase === "error" && (
-          <div className="empty my-auto">
-            <h2 className="text-lg font-bold text-foreground">{t("error")}</h2>
-            <p className="mt-1 text-sm">{error}</p>
-            <button className="btn btn-primary mt-4" onClick={loadQueue}>{t("reset")}</button>
-          </div>
-        )}
+        {phase === "done" ? (
+          <EmptyState
+            icon={<CheckCircle2 />}
+            title={t("sessionComplete")}
+            description={t("sessionCompleteHint")}
+            className="my-auto"
+          >
+            <Link href={`/decks/${deckId}`} className={cn(buttonVariants(), "min-h-11")}>
+              {t("returnToDeck")}
+            </Link>
+            <Button variant="outline" onClick={loadQueue} className="min-h-11">
+              <RotateCcw data-icon="inline-start" />
+              {t("startAgain")}
+            </Button>
+          </EmptyState>
+        ) : null}
 
-        {(phase === "front" || phase === "answer" || phase === "graduate" || phase === "confirmForget") && card && (
+        {card && phase !== "done" && phase !== "error" ? (
           <>
-            <div className="card flex flex-1 flex-col overflow-hidden">
-              <div className="flex items-center justify-between border-b border-line px-4 py-3 sm:px-6">
-                <span className={`badge ${card.status === "relearn" ? "badge-warning" : card.status === "new" ? "badge-accent" : "badge-success"}`}>
-                  {type === "LEARN" ? t("startLearn") : t("startReview")}
-                </span>
-                <span className="badge">{t("stage")} {card.stage}</span>
-              </div>
-              <div className="flex flex-1 flex-col justify-center px-5 py-10 sm:px-10">
-                <div className="mx-auto w-full max-w-2xl">
-                  {phase === "front" ? (
-                    <MarkdownContent content={card.front} />
-                  ) : (
-                    <div className="space-y-8">
-                      <div>
-                        <div className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">{t("front")}</div>
-                        <MarkdownContent content={card.front} />
-                      </div>
-                      <div className="border-t border-line pt-6">
-                        <div className="mb-2 text-xs font-bold uppercase tracking-wide text-accent">{t("backSide")}</div>
-                        <MarkdownContent content={card.back} />
-                      </div>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={card.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+                className="flex min-h-[52vh] flex-1 flex-col"
+              >
+                <ReviewCard
+                  card={card}
+                  phase={phase}
+                  statusLabel={statusLabel}
+                  stageLabel={`${t("stage")} ${card.stage}`}
+                  frontLabel={t("frontLabel")}
+                  backLabel={t("backLabel")}
+                />
+              </motion.div>
+            </AnimatePresence>
+
+            <div className="sticky bottom-0 mt-4 -mx-4 border-t bg-background/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:-mx-6 sm:px-6">
+              {phase === "front" ? (
+                <Button className="h-14 w-full text-base" onClick={() => setPhase("answer")}>
+                  <Eye data-icon="inline-start" />
+                  {t("flip")}
+                </Button>
+              ) : null}
+
+              {phase === "answer" || phase === "submitting" ? (
+                <RatingBar
+                  familiarLabel={t("familiar")}
+                  blurryLabel={t("blurry")}
+                  forgotLabel={t("forgot")}
+                  submittingLabel={t("ratingGroup")}
+                  submitting={phase === "submitting"}
+                  selected={selected}
+                  onSelect={chooseResult}
+                />
+              ) : null}
+
+              {phase === "leaving" || phase === "entering" ? (
+                <div className="flex min-h-14 items-center justify-center gap-2 text-sm text-muted-foreground" aria-live="polite">
+                  <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+                  {t("submitting")}
+                </div>
+              ) : null}
+
+              {phase === "graduate" ? (
+                <Card className="p-4">
+                  <CardContent className="flex flex-col gap-3 p-0">
+                    <h2 className="text-base font-semibold">{t("stage")} 8</h2>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Button onClick={() => submit("FAMILIAR", { graduate: true })} className="min-h-11">
+                        {t("graduate")}
+                      </Button>
+                      <Button variant="outline" onClick={() => submit("FAMILIAR", { graduate: false })} className="min-h-11">
+                        {t("continueReview")}
+                      </Button>
                     </div>
-                  )}
-                </div>
-              </div>
-            </div>
+                  </CardContent>
+                </Card>
+              ) : null}
 
-            <div className="mt-4">
-              {phase === "front" && (
-                <button className="btn btn-primary h-14 w-full text-base" onClick={() => setPhase("answer")}>
-                  <Eye size={18} /> {t("flip")}
-                </button>
-              )}
-
-              {phase === "answer" && (
-                <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                  <button className="btn btn-success h-14 text-sm sm:text-base" onClick={() => chooseResult("FAMILIAR")}>
-                    1 · {t("familiar")}
-                  </button>
-                  <button className="btn btn-warning h-14 text-sm sm:text-base" onClick={() => chooseResult("BLURRY")}>
-                    2 · {t("blurry")}
-                  </button>
-                  <button className="btn btn-danger h-14 text-sm sm:text-base" onClick={() => chooseResult("FORGOT")}>
-                    3 · {t("forgot")}
-                  </button>
-                </div>
-              )}
-
-              {phase === "graduate" && (
-                <div className="card space-y-3 p-4">
-                  <h2 className="text-base font-bold">{t("stage")} 8</h2>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <button className="btn btn-success" onClick={() => submit("FAMILIAR", { graduate: true })}>
-                      {t("graduate")}
-                    </button>
-                    <button className="btn btn-secondary" onClick={() => submit("FAMILIAR", { graduate: false })}>
-                      {t("continueReview")}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {phase === "confirmForget" && (
-                <div className="card space-y-3 p-4">
-                  <h2 className="text-base font-bold">{t("confirmForget")}</h2>
-                  <p className="text-sm text-muted">{t("confirmForgetHint")}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <button className="btn btn-danger" onClick={() => submit("FORGOT", { confirmForget: true })}>
-                      {t("confirmForget")}
-                    </button>
-                    <button className="btn btn-secondary" onClick={() => setPhase("answer")}>
-                      {t("cancel")}
-                    </button>
-                  </div>
-                </div>
-              )}
+              {phase === "confirmForget" ? (
+                <Card className="p-4">
+                  <CardContent className="flex flex-col gap-3 p-0">
+                    <h2 className="text-base font-semibold">{t("confirmForget")}</h2>
+                    <p className="text-sm text-muted-foreground">{t("confirmForgetHint")}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="destructive" onClick={() => submit("FORGOT", { confirmForget: true })} className="min-h-11">
+                        {t("confirmForget")}
+                      </Button>
+                      <Button variant="outline" onClick={() => { setPhase("answer"); setSelected(null); }} className="min-h-11">
+                        {t("cancel")}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
             </div>
           </>
-        )}
+        ) : null}
+
+        <div className="sr-only" aria-live="polite">
+          {selected ? `${t("ratingSubmitted")}: ${selected}` : ""}
+        </div>
       </div>
     </RequireAuth>
   );

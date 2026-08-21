@@ -2,9 +2,18 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Languages, LogOut, Monitor, Moon, Save, Sun } from "lucide-react";
+import { CheckCircle2, KeyRound, Languages, LoaderCircle, LogOut, Monitor, Moon, Save, Sun } from "lucide-react";
 import { api, apiErrorMessage } from "@/lib/api";
 import { RequireAuth } from "@/components/require-auth";
+import { PageHeader } from "@/components/page-header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
@@ -22,8 +31,11 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [logoutAllOpen, setLogoutAllOpen] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
 
   const effectiveRefreshTime = refreshTime ?? user?.settings.refreshTime.slice(0, 5) ?? "04:00";
   const effectiveLanguage = selectedLanguage ?? user?.settings.language ?? "ZH";
@@ -60,6 +72,11 @@ export default function SettingsPage() {
     event.preventDefault();
     setMessage("");
     setError("");
+    setPasswordError("");
+    if (newPassword.length < 8) {
+      setPasswordError(t("error"));
+      return;
+    }
     setPasswordBusy(true);
     try {
       await api<void>("/api/settings/password", {
@@ -76,6 +93,20 @@ export default function SettingsPage() {
     }
   };
 
+  const confirmLogoutAll = async () => {
+    setLogoutBusy(true);
+    try {
+      await logoutAll();
+      setLogoutAllOpen(false);
+      router.push("/login");
+      router.refresh();
+    } catch (err) {
+      setError(apiErrorMessage(err, language, t("error")));
+    } finally {
+      setLogoutBusy(false);
+    }
+  };
+
   const themeOptions: { value: ThemeMode; label: string; icon: typeof Monitor }[] = [
     { value: "SYSTEM", label: t("themeSystem"), icon: Monitor },
     { value: "LIGHT", label: t("themeLight"), icon: Sun },
@@ -84,107 +115,158 @@ export default function SettingsPage() {
 
   return (
     <RequireAuth>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight sm:text-3xl">{t("settings")}</h1>
-          <p className="mt-1 text-sm text-muted">{user?.email}</p>
-        </div>
+      <div className="dashboard-viewport flex flex-col gap-6">
+        <PageHeader title={t("settings")} description={user?.email} />
 
-        {message && <div className="rounded-lg bg-success-soft p-3 text-sm font-medium text-success">{message}</div>}
-        {error && <div className="rounded-lg bg-danger-soft p-3 text-sm font-medium text-danger">{error}</div>}
+        {message ? (
+          <Alert role="status">
+            <CheckCircle2 />
+            <AlertTitle>{message}</AlertTitle>
+          </Alert>
+        ) : null}
+
+        {error ? (
+          <Alert variant="destructive" role="alert">
+            <AlertTitle>{t("error")}</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="card space-y-5 p-5">
-            <h2 className="text-base font-bold">{t("settings")}</h2>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("settings")}</CardTitle>
+              <CardDescription>{t("refreshTime")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="refresh-time">
+                    <KeyRound className="size-4 text-primary" aria-hidden="true" />
+                    {t("refreshTime")}
+                  </FieldLabel>
+                  <Input
+                    id="refresh-time"
+                    type="time"
+                    step={900}
+                    value={effectiveRefreshTime}
+                    onChange={(event) => setRefreshTime(event.target.value)}
+                  />
+                  <FieldDescription>15 {t("minutes")}</FieldDescription>
+                </Field>
 
-            <label className="block">
-              <span className="mb-1.5 flex items-center gap-2 text-sm font-semibold">
-                <KeyRound size={15} /> {t("refreshTime")}
-              </span>
-              <input
-                type="time"
-                className="input"
-                step={900}
-                value={effectiveRefreshTime}
-                onChange={(event) => setRefreshTime(event.target.value)}
-              />
-              <span className="mt-1 block text-xs text-muted">15 {t("minutes")}</span>
-            </label>
+                <Field>
+                  <FieldLabel htmlFor="language">
+                    <Languages className="size-4 text-primary" aria-hidden="true" />
+                    {t("language")}
+                  </FieldLabel>
+                  <Select
+                    value={effectiveLanguage}
+                    onValueChange={(value) => setSelectedLanguage(value as UiLanguage)}
+                    items={{ ZH: "中文", EN: "English" }}
+                  >
+                    <SelectTrigger className="w-full" id="language" aria-label={t("language")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ZH">中文</SelectItem>
+                      <SelectItem value="EN">English</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
 
-            <label className="block">
-              <span className="mb-1.5 flex items-center gap-2 text-sm font-semibold">
-                <Languages size={15} /> {t("language")}
-              </span>
-              <select
-                className="select"
-                value={effectiveLanguage}
-                onChange={(event) => setSelectedLanguage(event.target.value as UiLanguage)}
-              >
-                <option value="ZH">中文</option>
-                <option value="EN">English</option>
-              </select>
-            </label>
+                <Field>
+                  <FieldLabel>{t("theme")}</FieldLabel>
+                  <ToggleGroup
+                    value={[effectiveTheme]}
+                    onValueChange={(values) => {
+                      const next = values[0] as ThemeMode | undefined;
+                      if (next) setTheme(next);
+                    }}
+                    className="grid w-full grid-cols-3 gap-2"
+                  >
+                    {themeOptions.map((option) => {
+                      const Icon = option.icon;
+                      return (
+                        <ToggleGroupItem
+                          key={option.value}
+                          value={option.value}
+                          className="flex-col gap-2 py-3"
+                        >
+                          <Icon className="size-4" aria-hidden="true" />
+                          <span>{option.label}</span>
+                        </ToggleGroupItem>
+                      );
+                    })}
+                  </ToggleGroup>
+                </Field>
 
-            <div>
-              <span className="mb-2 flex items-center gap-2 text-sm font-semibold">{t("theme")}</span>
-              <div className="grid grid-cols-3 gap-2">
-                {themeOptions.map((option) => {
-                  const Icon = option.icon;
-                  const active = effectiveTheme === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      className={`btn ${active ? "btn-primary" : "btn-secondary"} flex-col py-3 text-xs`}
-                      onClick={() => setTheme(option.value)}
-                    >
-                      <Icon size={17} />
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+                <Button onClick={saveSettings} disabled={settingsBusy} className="h-11 w-full">
+                  {settingsBusy ? (
+                    <LoaderCircle data-icon="inline-start" className="animate-spin" />
+                  ) : (
+                    <Save data-icon="inline-start" />
+                  )}
+                  {t("save")}
+                </Button>
+              </FieldGroup>
+            </CardContent>
+          </Card>
 
-            <button className="btn btn-primary w-full" onClick={saveSettings} disabled={settingsBusy}>
-              <Save size={16} /> {t("save")}
-            </button>
-          </div>
+          <div className="flex flex-col gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("changePassword")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={savePassword} noValidate>
+                  <FieldGroup>
+                    <Field>
+                      <FieldLabel htmlFor="current-password">{t("currentPassword")}</FieldLabel>
+                      <Input
+                        id="current-password"
+                        type="password"
+                        autoComplete="current-password"
+                        value={currentPassword}
+                        onChange={(event) => setCurrentPassword(event.target.value)}
+                        required
+                      />
+                    </Field>
+                    <Field data-invalid={!!passwordError}>
+                      <FieldLabel htmlFor="new-password">{t("newPassword")}</FieldLabel>
+                      <Input
+                        id="new-password"
+                        type="password"
+                        autoComplete="new-password"
+                        minLength={8}
+                        value={newPassword}
+                        onChange={(event) => setNewPassword(event.target.value)}
+                        aria-invalid={!!passwordError}
+                        required
+                      />
+                      {passwordError ? <FieldError>{passwordError}</FieldError> : null}
+                    </Field>
+                    <Button type="submit" disabled={passwordBusy} className="h-11 w-full">
+                      {passwordBusy ? (
+                        <LoaderCircle data-icon="inline-start" className="animate-spin" />
+                      ) : (
+                        <Save data-icon="inline-start" />
+                      )}
+                      {t("save")}
+                    </Button>
+                  </FieldGroup>
+                </form>
+              </CardContent>
+            </Card>
 
-          <div className="space-y-4">
-            <form onSubmit={savePassword} className="card space-y-4 p-5">
-              <h2 className="text-base font-bold">{t("changePassword")}</h2>
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-semibold">{t("currentPassword")}</span>
-                <input
-                  type="password"
-                  className="input"
-                  value={currentPassword}
-                  onChange={(event) => setCurrentPassword(event.target.value)}
-                  required
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-semibold">{t("newPassword")}</span>
-                <input
-                  type="password"
-                  className="input"
-                  minLength={8}
-                  value={newPassword}
-                  onChange={(event) => setNewPassword(event.target.value)}
-                  required
-                />
-              </label>
-              <button className="btn btn-primary w-full" type="submit" disabled={passwordBusy}>
-                <Save size={16} /> {t("save")}
-              </button>
-            </form>
-
-            <div className="card space-y-3 p-5">
-              <h2 className="text-base font-bold">{t("logoutCurrent")}</h2>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  className="btn btn-secondary"
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("logoutCurrent")}</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2 sm:grid-cols-2">
+                <Button
+                  variant="outline"
+                  className="h-11"
                   onClick={async () => {
                     try {
                       await logoutCurrent();
@@ -195,28 +277,38 @@ export default function SettingsPage() {
                     }
                   }}
                 >
-                  <LogOut size={16} /> {t("logoutCurrent")}
-                </button>
-                <button
-                  className="btn btn-danger"
-                  onClick={async () => {
-                    if (!window.confirm(t("confirmLogoutAll"))) return;
-                    try {
-                      await logoutAll();
-                      router.push("/login");
-                      router.refresh();
-                    } catch (err) {
-                      setError(apiErrorMessage(err, language, t("error")));
-                    }
-                  }}
-                >
-                  <LogOut size={16} /> {t("logoutAll")}
-                </button>
-              </div>
-            </div>
+                  <LogOut data-icon="inline-start" />
+                  {t("logoutCurrent")}
+                </Button>
+                <Button variant="destructive" className="h-11" onClick={() => setLogoutAllOpen(true)}>
+                  <LogOut data-icon="inline-start" />
+                  {t("logoutAll")}
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
+
+      <AlertDialog open={logoutAllOpen} onOpenChange={(open) => !open && setLogoutAllOpen(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("logoutAllTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("logoutAllDescription")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setLogoutAllOpen(false)}>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmLogoutAll} disabled={logoutBusy}>
+              {logoutBusy ? (
+                <LoaderCircle data-icon="inline-start" className="animate-spin" />
+              ) : (
+                <LogOut data-icon="inline-start" />
+              )}
+              {t("confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </RequireAuth>
   );
 }
