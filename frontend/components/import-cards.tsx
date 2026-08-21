@@ -5,8 +5,8 @@ import { FileText, LoaderCircle, Plus, Trash2, Upload } from "lucide-react";
 import { api, apiErrorMessage, IMPORT_MAX_CARDS, IMPORT_MAX_SOURCE_BYTES } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/lib/i18n";
 import type { ImportPreview, ImportPreviewItem, ImportResult } from "@/lib/types";
@@ -186,18 +186,18 @@ export function ImportCards({ deckId, open, onOpenChange, onImported }: ImportCa
 
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-2xl">
-        <SheetHeader>
-          <SheetTitle>{t("importCards")}</SheetTitle>
-        </SheetHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>{t("importCards")}</DialogTitle>
+        </DialogHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-4 pb-4">
+        <div className="flex flex-col gap-4">
           <Field>
             <FieldLabel htmlFor="import-source">{t("importSource")}</FieldLabel>
             <Textarea
               id="import-source"
-              className="min-h-36 font-mono"
+              className="min-h-36 max-h-56 resize-y font-mono md:max-h-72"
               value={source}
               onChange={(event) => {
                 setSource(event.target.value);
@@ -240,7 +240,7 @@ export function ImportCards({ deckId, open, onOpenChange, onImported }: ImportCa
                 </Badge>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border bg-panel-strong p-3">
+              <div className="max-h-[45vh] min-h-0 overflow-y-auto rounded-lg border bg-panel-strong p-3">
                 <div className="flex flex-col gap-3">
                   {preview.items.map((item, index) => {
                     const frontInvalid = item.errors.includes("front_required");
@@ -276,7 +276,7 @@ export function ImportCards({ deckId, open, onOpenChange, onImported }: ImportCa
                             <FieldLabel htmlFor={`import-front-${item.row}`}>{t("front")}</FieldLabel>
                             <Textarea
                               id={`import-front-${item.row}`}
-                              className="min-h-28"
+                              className="min-h-28 max-h-52 resize-y"
                               value={item.front}
                               onChange={(event) => updateRow(item.row, { front: event.target.value })}
                               aria-invalid={frontInvalid}
@@ -287,7 +287,7 @@ export function ImportCards({ deckId, open, onOpenChange, onImported }: ImportCa
                             <FieldLabel htmlFor={`import-back-${item.row}`}>{t("backSide")}</FieldLabel>
                             <Textarea
                               id={`import-back-${item.row}`}
-                              className="min-h-28"
+                              className="min-h-28 max-h-52 resize-y"
                               value={item.back}
                               onChange={(event) => updateRow(item.row, { back: event.target.value })}
                               aria-invalid={backInvalid}
@@ -305,7 +305,7 @@ export function ImportCards({ deckId, open, onOpenChange, onImported }: ImportCa
         </div>
 
         {preview ? (
-          <SheetFooter className="border-t">
+          <DialogFooter className="border-t">
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Button type="button" variant="outline" onClick={addRow} disabled={importBusy || preview.items.length >= IMPORT_MAX_CARDS}>
                 <Plus data-icon="inline-start" />
@@ -316,9 +316,9 @@ export function ImportCards({ deckId, open, onOpenChange, onImported }: ImportCa
                 {t("importRows")}
               </Button>
             </div>
-          </SheetFooter>
+          </DialogFooter>
         ) : null}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }

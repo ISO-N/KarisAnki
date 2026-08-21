@@ -180,23 +180,24 @@ export default function DeckDetailPage() {
 
         {error && !loading ? <ErrorState title={t("error")} description={error} onRetry={() => load(page, query, statusQuery)} retryLabel={t("retry")} /> : null}
 
-        {editorOpen ? (
-          <CardEditor
-            key={editing?.id ?? "new"}
-            deckId={deckId}
-            card={editing}
-            onSaved={async () => {
-              setMessage(editing ? t("cardUpdated") : t("cardCreated"));
+        <CardEditor
+          key={editing?.id ?? "new"}
+          deckId={deckId}
+          card={editing}
+          open={editorOpen}
+          onOpenChange={(open) => {
+            if (!open) {
               setEditorOpen(false);
               setEditing(null);
-              await load(page, query, statusQuery);
-            }}
-            onCancel={() => {
-              setEditorOpen(false);
-              setEditing(null);
-            }}
-          />
-        ) : null}
+            }
+          }}
+          onSaved={async () => {
+            setMessage(editing ? t("cardUpdated") : t("cardCreated"));
+            setEditorOpen(false);
+            setEditing(null);
+            await load(page, query, statusQuery);
+          }}
+        />
 
         {importOpen ? (
           <ImportCards deckId={deckId} open onOpenChange={setImportOpen} onImported={handleImported} />

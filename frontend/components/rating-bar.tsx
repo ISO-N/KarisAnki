@@ -16,9 +16,9 @@ interface RatingBarProps {
 }
 
 const options = [
-  { value: "FAMILIAR", labelKey: "familiar", icon: CheckCircle2 },
-  { value: "BLURRY", labelKey: "blurry", icon: CircleAlert },
   { value: "FORGOT", labelKey: "forgot", icon: XCircle },
+  { value: "BLURRY", labelKey: "blurry", icon: CircleAlert },
+  { value: "FAMILIAR", labelKey: "familiar", icon: CheckCircle2 },
 ] as const;
 
 const toneClasses = {

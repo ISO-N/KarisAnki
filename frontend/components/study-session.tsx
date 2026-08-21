@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/immutability -- queue loading and skipped-card recursion are external data syncs */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { CheckCircle2, Eye, LoaderCircle, RotateCcw } from "lucide-react";
@@ -38,11 +38,11 @@ function wait(ms: number) {
 export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" | "REVIEW" }) {
   const { t, language } = useI18n();
   const [phase, setPhase] = useState<Phase>("loading");
-  const [queue, setQueue] = useState<number[]>([]);
   const [card, setCard] = useState<StudyCard | null>(null);
   const [selected, setSelected] = useState<AnswerResult | null>(null);
   const [error, setError] = useState("");
   const [total, setTotal] = useState(0);
+  const [completedCount, setCompletedCount] = useState(0);
 
   const loadCard = useCallback(async (cardId: number, candidates: number[] = [], transition = false) => {
     try {
@@ -58,10 +58,8 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
       if (err instanceof ApiError && err.status === 404) {
         if (candidates.length > 1) {
           const nextCandidates = candidates.slice(1);
-          setQueue(nextCandidates);
           return loadCard(nextCandidates[0], nextCandidates, false);
         }
-        setQueue([]);
         setCard(null);
         setPhase("done");
         return false;
@@ -77,8 +75,8 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
       const data = await api<Queue>(
         `/api/decks/${deckId}/queue?type=${type}&timezone=${encodeURIComponent(clientTimezone())}`,
       );
-      setQueue(data.cardIds);
       setTotal(data.cardIds.length);
+      setCompletedCount(0);
       setSelected(null);
       if (data.cardIds.length === 0) {
         setCard(null);
@@ -114,7 +112,7 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
             confirmForget: extra?.confirmForget ?? false,
           }),
         });
-        setQueue(response.queue);
+        if (response.completed) setCompletedCount((count) => count + 1);
         if (response.queue.length === 0) {
           setCard(null);
           setPhase("done");
@@ -179,15 +177,14 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
         setPhase("answer");
         return;
       }
-      if (phase === "answer" && event.key === "1") chooseResult("FAMILIAR");
+      if (phase === "answer" && event.key === "1") chooseResult("FORGOT");
       if (phase === "answer" && event.key === "2") chooseResult("BLURRY");
-      if (phase === "answer" && event.key === "3") chooseResult("FORGOT");
+      if (phase === "answer" && event.key === "3") chooseResult("FAMILIAR");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [phase, chooseResult]);
 
-  const remaining = useMemo(() => Math.max(0, queue.length), [queue.length]);
   const statusLabel = phase === "loading" ? t("queueLoading") : type === "LEARN" ? t("startLearn") : t("startReview");
 
   return (
@@ -197,7 +194,7 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
           backHref={`/decks/${deckId}`}
           backLabel={t("back")}
           progressLabel={t("progressLabel")}
-          remaining={remaining}
+          completed={completedCount}
           total={total}
           statusLabel={statusLabel}
         />

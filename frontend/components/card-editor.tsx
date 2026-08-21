@@ -2,10 +2,10 @@
 
 import { useState, type FormEvent } from "react";
 import { api, apiErrorMessage } from "@/lib/api";
-import { Eye, LoaderCircle, Save, X } from "lucide-react";
+import { Eye, LoaderCircle, Save } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/lib/i18n";
@@ -15,11 +15,12 @@ import { MarkdownContent } from "@/components/markdown-content";
 interface CardEditorProps {
   deckId: number;
   card?: StudyCard | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onSaved: (card: StudyCard) => void;
-  onCancel?: () => void;
 }
 
-export function CardEditor({ deckId, card, onSaved, onCancel }: CardEditorProps) {
+export function CardEditor({ deckId, card, open, onOpenChange, onSaved }: CardEditorProps) {
   const { t, language } = useI18n();
   const [front, setFront] = useState(card?.front ?? "");
   const [back, setBack] = useState(card?.back ?? "");
@@ -56,22 +57,11 @@ export function CardEditor({ deckId, card, onSaved, onCancel }: CardEditorProps)
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{card ? `${t("edit")} ${t("cards")}` : t("createCard")}</CardTitle>
-        <CardAction className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => setPreview((value) => !value)}>
-            <Eye data-icon="inline-start" />
-            {t("preview")}
-          </Button>
-          {onCancel ? (
-            <Button type="button" variant="ghost" size="icon-sm" onClick={onCancel} aria-label={t("cancel")}>
-              <X />
-            </Button>
-          ) : null}
-        </CardAction>
-      </CardHeader>
-      <CardContent>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{card ? `${t("edit")} ${t("cards")}` : t("createCard")}</DialogTitle>
+        </DialogHeader>
         <form onSubmit={submit} noValidate>
           <FieldGroup>
             <div className="grid gap-5 lg:grid-cols-2">
@@ -79,7 +69,7 @@ export function CardEditor({ deckId, card, onSaved, onCancel }: CardEditorProps)
                 <FieldLabel htmlFor="card-front">{t("front")}</FieldLabel>
                 <Textarea
                   id="card-front"
-                  className="min-h-40"
+                  className="min-h-40 max-h-56 resize-y md:max-h-72"
                   value={front}
                   onChange={(event) => setFront(event.target.value)}
                   aria-invalid={!!frontError}
@@ -91,7 +81,7 @@ export function CardEditor({ deckId, card, onSaved, onCancel }: CardEditorProps)
                 <FieldLabel htmlFor="card-back">{t("backSide")}</FieldLabel>
                 <Textarea
                   id="card-back"
-                  className="min-h-40"
+                  className="min-h-40 max-h-56 resize-y md:max-h-72"
                   value={back}
                   onChange={(event) => setBack(event.target.value)}
                 />
@@ -118,7 +108,14 @@ export function CardEditor({ deckId, card, onSaved, onCancel }: CardEditorProps)
               </Alert>
             ) : null}
 
-            <div className="flex justify-end gap-2">
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setPreview((value) => !value)}>
+                <Eye data-icon="inline-start" />
+                {t("preview")}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                {t("cancel")}
+              </Button>
               <Button type="submit" disabled={busy || !front.trim()}>
                 {busy ? (
                   <LoaderCircle data-icon="inline-start" className="animate-spin" />
@@ -127,10 +124,10 @@ export function CardEditor({ deckId, card, onSaved, onCancel }: CardEditorProps)
                 )}
                 {t("save")}
               </Button>
-            </div>
+            </DialogFooter>
           </FieldGroup>
         </form>
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   );
 }

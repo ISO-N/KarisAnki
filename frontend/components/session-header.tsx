@@ -8,7 +8,7 @@ interface SessionHeaderProps {
   backHref: string;
   backLabel: string;
   progressLabel: string;
-  remaining: number;
+  completed: number;
   total: number;
   statusLabel?: string;
 }
@@ -17,11 +17,11 @@ export function SessionHeader({
   backHref,
   backLabel,
   progressLabel,
-  remaining,
+  completed,
   total,
   statusLabel,
 }: SessionHeaderProps) {
-  const completed = Math.max(0, total - remaining);
+  const current = total > 0 ? Math.min(total, completed + 1) : 0;
   const progress = total > 0 ? Math.min(100, (completed / total) * 100) : 0;
 
   return (
@@ -37,7 +37,7 @@ export function SessionHeader({
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-xs font-medium text-muted-foreground">{statusLabel}</span>
           <span className="font-mono text-xs tabular-nums text-muted-foreground" aria-live="polite">
-            {remaining} / {total}
+            {current} / {total}
           </span>
         </div>
         <Progress value={progress} aria-label={progressLabel} className="mt-1.5 w-full">
