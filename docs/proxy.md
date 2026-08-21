@@ -34,15 +34,17 @@ build:
 
 ## 反向代理
 
-建议在前端前面配置 TLS 终止。nginx 示例：
+nginx 示例：
 
 ```nginx
 server {
-  listen 443 ssl http2;
+  listen 80;
   server_name anki.example.com;
 
-  ssl_certificate /etc/letsencrypt/live/anki.example.com/fullchain.pem;
-  ssl_certificate_key /etc/letsencrypt/live/anki.example.com/privkey.pem;
+  # 如需在服务器直接启用 HTTPS，取消下面注释：
+  # listen 443 ssl http2;
+  # ssl_certificate /etc/letsencrypt/live/anki.example.com/fullchain.pem;
+  # ssl_certificate_key /etc/letsencrypt/live/anki.example.com/privkey.pem;
 
   location / {
     proxy_pass http://127.0.0.1:3000;
@@ -54,4 +56,4 @@ server {
 }
 ```
 
-当站点通过 HTTPS 提供服务时，设置 `COOKIE_SECURE=true`。不要把后端端口 `8080` 直接暴露到公网。
+Cloudflare Flexible 时源站不需要证书；浏览器与 Cloudflare 之间是 HTTPS，`.env` 中设置 `COOKIE_SECURE=true`。
