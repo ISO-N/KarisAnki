@@ -73,4 +73,19 @@ public interface CardRepository extends JpaRepository<Card, Long> {
 			order by c.createdAt asc, c.id asc
 			""")
 	List<Card> findActiveByDeckForUserOrderByCreatedAtAsc(@Param("deckId") Long deckId, @Param("userId") Long userId);
+
+	interface CardContentProjection {
+		String getFront();
+
+		String getBack();
+	}
+
+	@Query("""
+			select c.front as front, c.back as back
+			from Card c
+			join c.deck d
+			where d.id = :deckId and d.user.id = :userId and c.deletedAt is null and d.deletedAt is null
+			""")
+	List<CardContentProjection> findActiveContentByDeckForUser(@Param("deckId") Long deckId,
+			@Param("userId") Long userId);
 }

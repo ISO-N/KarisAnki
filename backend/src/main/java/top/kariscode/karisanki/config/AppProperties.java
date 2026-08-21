@@ -17,6 +17,8 @@ public class AppProperties {
 
 	private Duration rateLimitWindow = Duration.ofMinutes(10);
 
+	private final Import importConfig = new Import();
+
 	public boolean isRegistrationEnabled() {
 		return registrationEnabled;
 	}
@@ -47,5 +49,32 @@ public class AppProperties {
 
 	public void setRateLimitWindow(Duration rateLimitWindow) {
 		this.rateLimitWindow = rateLimitWindow;
+	}
+
+	public Import getImport() {
+		return importConfig;
+	}
+
+	public static class Import {
+
+		private int maxSourceBytes = 2 * 1024 * 1024;
+
+		private int maxCards = 5000;
+
+		public int getMaxSourceBytes() {
+			return maxSourceBytes;
+		}
+
+		public void setMaxSourceBytes(int maxSourceBytes) {
+			this.maxSourceBytes = maxSourceBytes;
+		}
+
+		public int getMaxCards() {
+			return maxCards;
+		}
+
+		public void setMaxCards(int maxCards) {
+			this.maxCards = maxCards;
+		}
 	}
 }

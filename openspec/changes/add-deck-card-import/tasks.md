@@ -1,55 +1,55 @@
-## 1. Backend Configuration and DTOs
+## 1. 后端配置与 DTO
 
-- [ ] 1.1 Add `karisanki.import.max-source-bytes` and `karisanki.import.max-cards` to `AppProperties` with defaults of `2MB` and `5000`
-- [ ] 1.2 Add parse/import DTO records to `CardDtos`: parse request, preview item, preview response, import request, import response
-- [ ] 1.3 Add `invalid_import_json`, `import_source_too_large`, `too_many_import_cards`, and `back_invalid` business error handling paths
+- [x] 1.1 在 `AppProperties` 添加 `karisanki.import.max-source-bytes` 和 `karisanki.import.max-cards`，默认值分别为 `2MB` 和 `5000`
+- [x] 1.2 在 `CardDtos` 添加解析/导入 DTO 记录：解析请求、预览项、预览响应、导入请求、导入响应
+- [x] 1.3 添加 `invalid_import_json`、`import_source_too_large`、`too_many_import_cards` 和 `back_invalid` 业务错误处理路径
 
-## 2. Backend JSON Parse
+## 2. 后端 JSON 解析
 
-- [ ] 2.1 Implement parse service logic that validates source size, parses raw JSON, and rejects non-array roots
-- [ ] 2.2 Normalize each object row: trim `front`, convert missing/blank `back` to empty string, collect per-row errors, and ignore unknown fields
-- [ ] 2.3 Load active card content projections for the deck and mark rows whose normalized `front` + `back` already exists
-- [ ] 2.4 Return preview items plus `total`, `validCount`, `duplicateCount`, and `invalidCount`, and reject card counts above the configured limit
+- [x] 2.1 实现解析服务逻辑：校验源大小、解析原始 JSON、拒绝非数组根节点
+- [x] 2.2 规范化每个对象行：`front` 去除首尾空白，缺失或空白的 `back` 转为空字符串，收集逐行错误，忽略未知字段
+- [x] 2.3 加载当前卡组活动卡片的正面/背面内容投影，将规范化后 `front` + `back` 已存在的行标记为重复
+- [x] 2.4 返回预览项以及 `total`、`validCount`、`duplicateCount`、`invalidCount`，并拒绝超过配置卡片数量上限的请求
 
-## 3. Backend Bulk Import
+## 3. 后端批量导入
 
-- [ ] 3.1 Add a repository query that returns only active card `front`/`back` values for a deck owned by the user
-- [ ] 3.2 Implement `CardService.importCards` that validates every row, rechecks duplicates, assigns sequential positions after the current max, and creates `Card` + `CardState` records
-- [ ] 3.3 Make the import method transactional so any invalid row or persistence failure rolls back the whole batch
-- [ ] 3.4 Add `POST /api/decks/{deckId}/cards/parse` and `POST /api/decks/{deckId}/cards/import` endpoints in `CardController` with user/deck ownership checks
-- [ ] 3.5 Return `created` and `skippedDuplicates` from the import endpoint
+- [x] 3.1 添加仓库查询，只返回当前用户卡组中活动卡片的 `front`/`back` 值
+- [x] 3.2 实现 `CardService.importCards`：校验每一行、重新检查重复、从当前最大 position 之后分配连续 position，并创建 `Card` 和 `CardState` 记录
+- [x] 3.3 让导入方法使用事务，任何无效行或持久化失败都会回滚整批写入
+- [x] 3.4 在 `CardController` 添加 `POST /api/decks/{deckId}/cards/parse` 和 `POST /api/decks/{deckId}/cards/import` 接口，并校验用户/卡组所有权
+- [x] 3.5 从导入接口返回 `created` 和 `skippedDuplicates`
 
-## 4. Backend Tests
+## 4. 后端测试
 
-- [ ] 4.1 Add integration tests for successful parse, invalid JSON, non-array roots, and per-row invalid front/back handling
-- [ ] 4.2 Add integration tests for import success, existing-card dedupe, source order preservation, and new-card state
-- [ ] 4.3 Add integration tests proving an invalid row rejects the entire batch with no cards created
-- [ ] 4.4 Add integration tests for cross-user deck access isolation on parse and import
-- [ ] 4.5 Add integration tests for source size and card count limits
-- [ ] 4.6 Run `cd backend && ./mvnw test`
+- [x] 4.1 添加集成测试：解析成功、无效 JSON、非数组根节点、逐行正面/背面无效处理
+- [x] 4.2 添加集成测试：导入成功、现有卡片去重、源顺序保留、新卡状态
+- [x] 4.3 添加集成测试：任一行无效时拒绝整批且不创建任何卡片
+- [x] 4.4 添加集成测试：解析和导入时跨用户卡组访问隔离
+- [x] 4.5 添加集成测试：源大小和卡片数量限制
+- [x] 4.6 运行 `cd backend && ./mvnw test`
 
-## 5. Frontend Types, API, and Copy
+## 5. 前端类型、API 和文案
 
-- [ ] 5.1 Add `ImportPreviewItem`, `ImportPreview`, and `ImportResult` types to `lib/types.ts`
-- [ ] 5.2 Add import error messages to `lib/api.ts` and UI copy to `lib/i18n.tsx` for both ZH and EN
-- [ ] 5.3 Add client-side source size and card count limits aligned with the backend defaults
+- [x] 5.1 在 `lib/types.ts` 添加 `ImportPreviewItem`、`ImportPreview` 和 `ImportResult` 类型
+- [x] 5.2 在 `lib/api.ts` 添加导入错误消息，并在 `lib/i18n.tsx` 添加中英文 UI 文案
+- [x] 5.3 添加与后端默认值一致的前端源大小和卡片数量限制
 
-## 6. Frontend Import Panel
+## 6. 前端导入面板
 
-- [ ] 6.1 Create an `ImportCards` component with paste JSON textarea and `.json` file upload that fills the same source input
-- [ ] 6.2 Implement the parse request, loading/error states, and a summary showing valid, duplicate, and invalid rows
-- [ ] 6.3 Render an editable preview list where each row has front/back textareas, row errors, duplicate status, and delete action
-- [ ] 6.4 Support adding an empty row and update each row's client-side validity as content changes
-- [ ] 6.5 Implement the import request using edited rows, show created/skipped counts, and call `onImported` to close and reload
-- [ ] 6.6 Wire the import button into the deck detail page header using a `Sheet` panel and preserve existing page loading/filter behavior
+- [x] 6.1 创建 `ImportCards` 组件，提供粘贴 JSON 文本框和 `.json` 文件上传，并共用同一个源输入
+- [x] 6.2 实现解析请求、加载/错误状态，以及有效、重复、无效行摘要
+- [x] 6.3 渲染可编辑预览列表，每行包含正面/背面文本域、行错误、重复状态和删除操作
+- [x] 6.4 支持新增空行，并在内容变化时更新每行的客户端校验
+- [x] 6.5 使用编辑后的行发起导入请求，展示创建/跳过数量，并调用 `onImported` 关闭和刷新
+- [x] 6.6 在卡组详情页头部使用 `Sheet` 面板接入导入按钮，并保留现有页面加载/筛选行为
 
-## 7. Configuration Documentation
+## 7. 配置文档
 
-- [ ] 7.1 Add `KARISANKI_IMPORT_MAX_SOURCE_BYTES` and `KARISANKI_IMPORT_MAX_CARDS` to `.env.example`
-- [ ] 7.2 Document the two new variables in `docs/environment-variables.md`
+- [x] 7.1 在 `.env.example` 添加 `KARISANKI_IMPORT_MAX_SOURCE_BYTES` 和 `KARISANKI_IMPORT_MAX_CARDS`
+- [x] 7.2 在 `docs/environment-variables.md` 记录这两个新变量
 
-## 8. Final Verification
+## 8. 最终验证
 
-- [ ] 8.1 Run `cd frontend && npm run lint`
-- [ ] 8.2 Run `cd frontend && npm run build`
-- [ ] 8.3 Run `openspec validate --change add-deck-card-import`
+- [x] 8.1 运行 `cd frontend && npm run lint`
+- [x] 8.2 运行 `cd frontend && npm run build`
+- [x] 8.3 运行 `openspec validate add-deck-card-import --type change`

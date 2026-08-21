@@ -33,6 +33,15 @@ KARISANKI_REGISTRATION_ENABLED=true
 
 限流保存在后端实例内存中，并作用于单个后端实例。v1 不会因重复失败永久锁定账号。
 
+## 卡片导入
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `KARISANKI_IMPORT_MAX_SOURCE_BYTES` | `2097152` | 单次解析的原始 JSON 最大字节数，默认 2MB |
+| `KARISANKI_IMPORT_MAX_CARDS` | `5000` | 单次解析和导入的最大卡片数量 |
+
+前端会在解析前按相同默认值做本地大小和数量提示，后端始终以配置值为准。
+
 ## Cookie 与服务端
 
 | 变量 | 默认值 | 说明 |

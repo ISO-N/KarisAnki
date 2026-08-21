@@ -70,4 +70,16 @@ public class CardController {
 	public void reset(@AuthenticationPrincipal UserPrincipal principal, @PathVariable Long cardId) {
 		deckService.resetCard(principal.id(), cardId);
 	}
+
+	@PostMapping("/decks/{deckId}/cards/parse")
+	public CardDtos.ImportPreviewResponse parse(@AuthenticationPrincipal UserPrincipal principal,
+			@PathVariable Long deckId, @RequestBody CardDtos.ParseCardRequest request) {
+		return cardService.parseCards(principal.id(), deckId, request.source());
+	}
+
+	@PostMapping("/decks/{deckId}/cards/import")
+	public CardDtos.ImportResult importCards(@AuthenticationPrincipal UserPrincipal principal,
+			@PathVariable Long deckId, @RequestBody CardDtos.ImportCardsRequest request) {
+		return cardService.importCards(principal.id(), deckId, request);
+	}
 }

@@ -90,3 +90,24 @@ export interface Statistics {
   };
   deckOptions: DeckOption[];
 }
+
+export interface ImportPreviewItem {
+  row: number;
+  front: string;
+  back: string;
+  duplicate: boolean;
+  errors: string[];
+}
+
+export interface ImportPreview {
+  items: ImportPreviewItem[];
+  total: number;
+  validCount: number;
+  duplicateCount: number;
+  invalidCount: number;
+}
+
+export interface ImportResult {
+  created: number;
+  skippedDuplicates: number;
+}
