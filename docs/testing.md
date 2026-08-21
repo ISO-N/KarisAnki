@@ -60,7 +60,7 @@ npx playwright install chromium
 TEST_BACKEND_PORT=18081 TEST_FRONTEND_PORT=18082 npm run test:e2e
 ```
 
-E2E 前需要先启动测试数据库，并启动后端 `18081`、前端 `18082`。完整流程也可由 `.github/workflows/quality.yml` 在 CI 中执行。
+E2E 前需要先启动测试数据库，并启动后端 `18081`、前端 `18082`。完整流程也可由 `.github/workflows/ci.yml` 在 CI 中执行。
 
 ## 部署 smoke
 

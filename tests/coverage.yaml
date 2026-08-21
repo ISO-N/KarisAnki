@@ -26,7 +26,7 @@ coverage:
         tests:
           - scripts/docker-smoke.sh
           - scripts/prune-ghcr.sh
-          - .github/workflows/quality.yml
+          - .github/workflows/ci.yml
   frontend-design:
     requirements:
       "*":

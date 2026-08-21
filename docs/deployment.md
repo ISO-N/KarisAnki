@@ -55,7 +55,7 @@ docker compose up -d
 v1 在后端启动时执行 Flyway 迁移，不支持多个后端副本。`app` 容器内只有一个后端进程，因此部署时必须只运行一个 `app` 容器。如果容器重启，它可能再次执行迁移；如果同时启动第二个容器，两个实例可能在迁移上发生竞争。详见 [单后端实例约束](single-instance.md)。
 ## CI 发布与 GHCR 保留
 
-推送到 `master` 时，`.github/workflows/publish.yml` 会自动构建并发布 `ghcr.io/<owner>/karisanki` 镜像：
+推送到 `master` 时，`.github/workflows/ci.yml` 会先运行完整测试、E2E 和 Docker smoke，再构建并发布 `ghcr.io/<owner>/karisanki` 镜像：
 
 - 标签为 `latest` 和 `sha-<commit>`。
 - 构建成功并推送后才执行清理。
