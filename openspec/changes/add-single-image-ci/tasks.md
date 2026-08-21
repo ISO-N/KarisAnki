@@ -35,4 +35,4 @@
 - [x] 5.3 验证 `curl -I http://localhost:3000` 和 `curl http://localhost:3000/api/auth/registration-status`
 - [x] 5.4 验证容器内任一进程退出时，另一个进程被终止且容器退出
 - [x] 5.5 用 `bash -n` 或等价方式检查工作流内清理脚本语法
-- [ ] 5.6 在 `master` 真实 push 后验证 GHCR 只保留最新两个包版本
+- [x] 5.6 在 `master` 真实 push 后验证 GHCR 只保留最新两个包版本
