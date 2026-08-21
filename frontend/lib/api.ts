@@ -6,10 +6,41 @@ export class ApiError extends Error {
 
   constructor(code: string, message: string, status: number) {
     super(message);
+    this.name = "ApiError";
     this.code = code;
     this.status = status;
   }
 }
+
+export class ApiNetworkError extends Error {
+  code: "network_timeout" | "network_error" | "request_aborted";
+
+  constructor(
+    code: "network_timeout" | "network_error" | "request_aborted",
+    message: string,
+    cause?: unknown,
+  ) {
+    super(message);
+    this.name = "ApiNetworkError";
+    this.code = code;
+    if (cause) {
+      this.cause = cause;
+    }
+  }
+}
+
+export interface RetryOptions {
+  maxRetries?: number;
+  backoffMs?: number;
+}
+
+export interface ApiRequestInit extends RequestInit {
+  timeoutMs?: number;
+  retry?: boolean | RetryOptions;
+  idempotent?: boolean;
+}
+
+export const DEFAULT_TIMEOUT_MS = 15_000;
 export const IMPORT_MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 export const IMPORT_MAX_CARDS = 5000;
 
@@ -39,6 +70,9 @@ const apiMessages: Record<UiLanguage, Record<string, string>> = {
     import_source_too_large: "导入内容超过大小限制",
     too_many_import_cards: "单次导入卡片数量过多",
     back_invalid: "卡片背面格式不正确",
+    network_timeout: "请求超时，请检查网络后重试",
+    network_error: "网络连接失败，请检查网络",
+    request_aborted: "请求已取消",
   },
   EN: {
     invalid_invite_code: "Invalid invite code.",
@@ -53,7 +87,6 @@ const apiMessages: Record<UiLanguage, Record<string, string>> = {
     queue_conflict: "The queue is no longer valid. Refresh it and try again.",
     queue_refresh: "The card state changed. Refresh the queue.",
     confirmation_required: "Confirm switching from blurry relearn to forgot relearn.",
-    request_failed: "Request failed.",
     validation_error: "The request parameters are invalid.",
     rate_limited: "Too many attempts. Please try again later.",
     card_not_found: "Card not found.",
@@ -66,41 +99,130 @@ const apiMessages: Record<UiLanguage, Record<string, string>> = {
     import_source_too_large: "The import source exceeds the size limit.",
     too_many_import_cards: "The import contains too many cards.",
     back_invalid: "The card back has an invalid format.",
+    network_timeout: "The request timed out. Check the network and try again.",
+    network_error: "Network unavailable. Check your connection.",
+    request_aborted: "The request was cancelled.",
   },
 };
 
+interface ApiErrorPayload {
+  code?: string;
+  message?: string;
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function retryPlan(method: string, init: ApiRequestInit): RetryOptions | null {
+  if (init.retry === false) return null;
+  const safe = method === "GET" || (method === "POST" && init.idempotent === true);
+  if (!safe) return null;
+
+  const configured =
+    typeof init.retry === "object"
+      ? init.retry
+      : { maxRetries: method === "GET" ? 2 : 2, backoffMs: 300 };
+  return {
+    maxRetries: Math.max(0, configured.maxRetries ?? 2),
+    backoffMs: Math.max(0, configured.backoffMs ?? 300),
+  };
+}
+
+function isRetryable(error: unknown) {
+  if (error instanceof ApiNetworkError) return true;
+  if (error instanceof ApiError) return error.status >= 500 && error.status !== 501;
+  return false;
+}
+
+async function fetchOnce(path: string, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  const externalSignal = init.signal;
+  const onExternalAbort = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      externalSignal.addEventListener("abort", onExternalAbort, { once: true });
+    }
+  }
+
+  try {
+    return await fetch(path, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (timedOut) {
+      throw new ApiNetworkError("network_timeout", "Request timed out.", error);
+    }
+    if (externalSignal?.aborted) {
+      throw new ApiNetworkError("request_aborted", "Request cancelled.", error);
+    }
+    throw new ApiNetworkError("network_error", "Network unavailable.", error);
+  } finally {
+    clearTimeout(timeoutId);
+    externalSignal?.removeEventListener("abort", onExternalAbort);
+  }
+}
+
 export function apiErrorMessage(error: unknown, language: UiLanguage, fallback: string): string {
-  if (error instanceof ApiError) {
+  if (error instanceof ApiError || error instanceof ApiNetworkError) {
     return apiMessages[language]?.[error.code] ?? error.message;
   }
   return error instanceof Error ? error.message : fallback;
 }
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+export async function api<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+  const method = (init.method ?? "GET").toUpperCase();
+  const { timeoutMs, retry, idempotent, ...requestInit } = init;
   const headers: Record<string, string> = {
-    ...(init?.headers as Record<string, string> | undefined),
+    ...(requestInit.headers as Record<string, string> | undefined),
   };
-  if (init?.body && !(init.body instanceof FormData)) {
+  if (requestInit.body && !(requestInit.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
-  const response = await fetch(path, {
-    ...init,
-    headers,
-    credentials: "same-origin",
-  });
-  if (response.status === 204) {
-    return undefined as T;
-  }
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    if (response.status === 401 && typeof window !== "undefined") {
-      window.dispatchEvent(new Event("karisanki:unauthorized"));
+
+  const plan = retryPlan(method, { ...init, retry, idempotent });
+  const attempts = (plan?.maxRetries ?? 0) + 1;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const response = await fetchOnce(path, {
+        ...requestInit,
+        headers,
+        credentials: "same-origin",
+      }, timeoutMs ?? DEFAULT_TIMEOUT_MS);
+
+      if (response.status === 204) {
+        return undefined as T;
+      }
+
+      const data: ApiErrorPayload | null = await response.json().catch(() => null);
+      if (!response.ok) {
+        if (response.status === 401 && typeof window !== "undefined") {
+          window.dispatchEvent(new Event("karisanki:unauthorized"));
+        }
+        const code = data?.code || "request_failed";
+        const message = data?.message || `Request failed (${response.status})`;
+        throw new ApiError(code, message, response.status);
+      }
+      return data as T;
+    } catch (error) {
+      if (isRetryable(error) && attempt < attempts - 1) {
+        const backoffMs = (plan?.backoffMs ?? 300) * 2 ** attempt;
+        await wait(backoffMs);
+        continue;
+      }
+      throw error;
     }
-    const code = data?.code || "request_failed";
-    const message = data?.message || `Request failed (${response.status})`;
-    throw new ApiError(code, message, response.status);
   }
-  return data as T;
+  throw new ApiNetworkError("network_error", "Network unavailable.", undefined);
 }
 
 export function browserLanguage(): "ZH" | "EN" {

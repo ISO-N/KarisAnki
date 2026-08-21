@@ -5,17 +5,18 @@ import { useRouter } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
+import { useNetworkStatus } from "@/lib/network";
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const { t } = useI18n();
-
+  const online = useNetworkStatus();
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !user && online) {
       router.replace("/login");
     }
-  }, [loading, user, router]);
+  }, [loading, online, router, user]);
 
   if (loading) {
     return (
@@ -27,7 +28,11 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   }
 
   if (!user) {
-    return null;
+    return online ? null : (
+      <div className="flex min-h-[60vh] items-center justify-center text-muted-foreground">
+        {t("offline")}
+      </div>
+    );
   }
 
   return <>{children}</>;

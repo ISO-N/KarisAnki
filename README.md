@@ -36,6 +36,7 @@
 | **账号与认证** | 邮箱注册 / 登录，邀请码门控，内存限流，`KARISANKI_SESSION` 会话（Spring Session JDBC） |
 | **卡组与卡片** | 卡组创建 / 重命名 / 删除，卡片增删改查、分页与搜索，Markdown + KaTeX 渲染 |
 | **学习调度** | 间隔复习与重学队列，`ScheduleEngine` 驱动的答题调度与冲突处理 |
+| **离线学习** | 会话快照 + IndexedDB 本地持久化，弱网 / 短时离线评分与幂等同步 |
 | **统计分析** | 学习进度、待复习 / 重学计数、历史答题统计 |
 | **用户设置** | 刷新时间、界面语言、主题模式等个性化配置 |
 | **同域部署** | Next.js `rewrites` 将 `/api/*` 转发至后端，无需 CORS / 跨域 Cookie 配置 |
@@ -47,7 +48,7 @@
 | 层 | 选型 | 说明 |
 |---|---|---|
 | 后端 | Spring Boot 4.1 · Java 21 | Spring WebMVC / Data JPA / Security / Validation / Session JDBC / Flyway |
-| 数据库 | PostgreSQL 17 | 唯一持久化存储，Flyway 管理迁移（`V1`、`V2`） |
+| 数据库 | PostgreSQL 17 | 唯一持久化存储，Flyway 管理迁移（`V1` 至 `V3`） |
 | 前端 | Next.js 16 · React 19 | App Router + `output: standalone`，Tailwind 4，shadcn `base-nova`，KaTeX |
 | 部署 | Docker Compose | `postgres` + `app` 单镜像编排，`master` push 自动发布 GHCR |
 
@@ -120,11 +121,11 @@ npm run dev                     # http://localhost:3000
 │   ├── src/main/java/.../service/     # 业务服务（Answer / Card / Deck / Queue / Statistics …）
 │   ├── src/main/java/.../web/         # 控制器 + DTO + ApiExceptionHandler
 │   ├── src/main/java/.../security/    # 会话、鉴权、限流
-│   └── src/main/resources/db/migration/ # Flyway V1__initial_schema.sql、V2__search_and_queue_indexes.sql
+│   └── src/main/resources/db/migration/ # Flyway V1__initial_schema.sql、V2__search_and_queue_indexes.sql、V3__answer_submissions.sql
 ├── frontend/                # Next.js 应用
 │   ├── app/                 # App Router 路由（decks / login / register / settings / statistics）
 │   ├── components/          # 业务组件 + ui/shadcn 基础组件
-│   ├── lib/                 # api.ts / auth-context.tsx / theme.tsx / i18n.tsx
+│   ├── lib/                 # api.ts / auth-context.tsx / theme.tsx / i18n.tsx / offline 模块
 │   ├── next.config.ts       # output: standalone + /api/* rewrites
 │   └── app/globals.css      # 设计令牌与布局（亮/暗主题）
 ├── docs/                    # 部署 / 环境变量 / 备份恢复 / 代理 / 单实例 / 测试
@@ -169,7 +170,9 @@ npm run dev                     # http://localhost:3000
 | 认证 | `/api/auth/*` | 注册、登录、注册状态查询 |
 | 卡组 | `/api/decks` | 列表、创建、重命名、删除、选项查询 |
 | 卡片 | `/api/decks/{deckId}/cards` | 增删改查、分页、搜索 |
-| 学习队列 | `/api/queue` | 拉取待学队列、提交答题 |
+| 学习队列 | `/api/decks/{deckId}/queue` | 拉取待学队列 |
+| 学习会话 | `/api/decks/{deckId}/session` | 获取含完整卡片内容的离线会话快照 |
+| 答题 | `/api/answer` | 幂等提交答题，携带 `clientAnswerId` |
 | 统计 | `/api/statistics` | 学习统计与计数 |
 | 设置 | `/api/settings` | 用户设置读写 |
 
@@ -179,7 +182,7 @@ npm run dev                     # http://localhost:3000
 
 ## 🧪 测试
 
-后端测试直连真实 PostgreSQL（`localhost:5433/karisanki_test`），不使用 H2 / Testcontainers。Flyway 在启动时自动应用 `V1`、`V2`，`spring.jpa.hibernate.ddl-auto=validate` 校验实体与 schema。
+后端测试直连真实 PostgreSQL（`localhost:5433/karisanki_test`），不使用 H2 / Testcontainers。Flyway 在启动时自动应用 `V1` 至 `V3`，`spring.jpa.hibernate.ddl-auto=validate` 校验实体与 schema。
 
 ```bash
 # 启动测试数据库并等待健康检查通过
@@ -207,7 +210,7 @@ docker compose -f docker-compose.test.yml up -d
 cd frontend
 npm run lint
 npm run build
-```
+npm test
 
 ---
 ## 📦 部署
@@ -243,6 +246,7 @@ docker compose up -d
 | [部署](docs/deployment.md) | postgres + app 单镜像部署、GHCR 发布与保留策略 |
 | [环境变量](docs/environment-variables.md) | 全部变量默认值与说明 |
 | [测试](docs/testing.md) | 测试数据库与用例说明 |
+| [离线学习](docs/offline-sessions.md) | 会话快照、幂等答题、IndexedDB outbox 与同步冲突 |
 | [生产环境同域代理](docs/proxy.md) | rewrite 原理、构建期配置、nginx 示例 |
 | [单后端实例](docs/single-instance.md) | 为何不能多副本及运维规则 |
 | [备份与恢复](docs/backup-restore.md) | `pg_dump` / `pg_restore` 实操 |
@@ -254,7 +258,7 @@ docker compose up -d
 欢迎提交 Issue 与 Pull Request。
 
 1. Fork 本仓库并创建特性分支（`git checkout -b feat/xxx`）。
-2. 本地验证：`cd backend && ./mvnw test` 与 `cd frontend && npm run lint && npm run build` 均通过。
+2. 本地验证：`cd backend && ./mvnw test` 与 `cd frontend && npm run lint && npm run build && npm test` 均通过。
 3. 提交前确保不包含敏感信息（`DB_PASSWORD`、`KARISANKI_INVITE_CODES` 等）。
 4. 发起 PR 时请清晰描述变更动机与影响面。
 

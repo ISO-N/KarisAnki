@@ -221,7 +221,7 @@ public class CardService {
 		return (front == null ? "" : front.trim()) + "\u0000" + (back == null ? "" : back.trim());
 	}
 
-	private CardDtos.CardResponse toResponse(Card card) {
+	CardDtos.CardResponse toResponse(Card card) {
 		CardState state = card.getState();
 		return new CardDtos.CardResponse(card.getId(), card.getDeck().getId(), card.getFront(), card.getBack(),
 				card.getPosition(), status(state), state.getStage(), state.getRelearnMode(),

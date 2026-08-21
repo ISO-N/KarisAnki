@@ -196,9 +196,8 @@ class ApplicationIntegrationTest {
 				.andExpect(jsonPath("$.cardIds[0]").value(cardOne));
 
 		answerCard(cardOne, "BLURRY", "LEARN", "UTC", user)
-				.andExpect(jsonPath("$.queue[0]").value(cardTwo))
-				.andExpect(jsonPath("$.queue[1]").value(cardOne))
-				.andExpect(jsonPath("$.queue[2]").value(cardThree));
+				.andExpect(jsonPath("$.accepted").value(true))
+				.andExpect(jsonPath("$.nextCardId").value(cardTwo));
 
 		answerCard(cardTwo, "FAMILIAR", "LEARN", "UTC", user)
 				.andExpect(status().isOk());
@@ -210,11 +209,12 @@ class ApplicationIntegrationTest {
 
 		long staleVersion = jsonNode(getJson("/api/cards/" + cardOne, user).andReturn()).get("stateVersion").asLong();
 		answerCard(cardOne, "FAMILIAR", "LEARN", "UTC", user)
-				.andExpect(jsonPath("$.queue[0]").value(cardThree))
-				.andExpect(jsonPath("$.queue[1]").value(cardOne));
+				.andExpect(jsonPath("$.accepted").value(true))
+				.andExpect(jsonPath("$.nextCardId").value(cardThree));
 
 		postJson("/api/answer",
-				"{\"cardId\":" + cardOne + ",\"result\":\"BLURRY\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\",\"stateVersion\":" + staleVersion + "}",
+				"{\"clientAnswerId\":\"stale-" + System.nanoTime() + "\",\"cardId\":"
+						+ cardOne + ",\"result\":\"BLURRY\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\",\"stateVersion\":" + staleVersion + "}",
 				user).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("queue_refresh"));
 
 		postNoBody("/api/cards/" + cardThree + "/reset", user).andExpect(status().isNoContent());
@@ -499,12 +499,14 @@ class ApplicationIntegrationTest {
 
 		long version = jsonNode(getJson("/api/cards/" + card, user).andReturn()).get("stateVersion").asLong();
 		postJson("/api/answer",
-				"{\"cardId\":" + card + ",\"result\":\"FORGOT\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\",\"stateVersion\":" + version + "}",
+				"{\"clientAnswerId\":\"confirm-" + System.nanoTime() + "\",\"cardId\":"
+						+ card + ",\"result\":\"FORGOT\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\",\"stateVersion\":" + version + "}",
 				user).andExpect(status().isConflict())
 				.andExpect(jsonPath("$.code").value("confirmation_required"));
 
 		postJson("/api/answer",
-				"{\"cardId\":" + card + ",\"result\":\"FORGOT\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\",\"stateVersion\":" + version + ",\"confirmForget\":true}",
+				"{\"clientAnswerId\":\"confirm-ok-" + System.nanoTime() + "\",\"cardId\":"
+						+ card + ",\"result\":\"FORGOT\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\",\"stateVersion\":" + version + ",\"confirmForget\":true}",
 				user).andExpect(status().isOk());
 		getJson("/api/cards/" + card, user)
 				.andExpect(status().isOk())
@@ -517,9 +519,8 @@ class ApplicationIntegrationTest {
 		long deckId = createDeck("Version", user);
 		long card = createCard(deckId, "Card", "", user);
 
-		postJson("/api/answer",
-				"{\"cardId\":" + card + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}",
-				user).andExpect(status().isBadRequest())
+		String body = "{\"clientAnswerId\":\"missing-version-" + System.nanoTime() + "\",\"cardId\":" + card + ",\"result\":\"FAMILIAR\",\"queueType\":\"LEARN\",\"timezone\":\"UTC\"}";
+		postJson("/api/answer", body, user).andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("validation_error"));
 	}
 
@@ -764,7 +765,8 @@ class ApplicationIntegrationTest {
 			String cookie) throws Exception {
 		long version = stateVersion(cardId, cookie);
 		return postJson("/api/answer",
-				"{\"cardId\":" + cardId + ",\"result\":\"" + result + "\",\"queueType\":\"" + queueType
+				"{\"clientAnswerId\":\"client-" + System.nanoTime() + "\",\"cardId\":" + cardId
+						+ ",\"result\":\"" + result + "\",\"queueType\":\"" + queueType
 						+ "\",\"timezone\":\"" + timezone + "\",\"stateVersion\":" + version + "}",
 				cookie);
 	}

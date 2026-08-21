@@ -8,6 +8,8 @@ import jakarta.validation.constraints.NotNull;
 import top.kariscode.karisanki.domain.AnswerResult;
 import top.kariscode.karisanki.domain.StudyQueue;
 public record AnswerRequest(
+		@NotBlank String clientAnswerId,
+		String previousClientAnswerId,
 		@NotNull Long cardId,
 		@NotNull AnswerResult result,
 		@NotNull StudyQueue queueType,

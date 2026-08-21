@@ -55,13 +55,22 @@ export interface Queue {
   type: "LEARN" | "REVIEW";
   cardIds: number[];
 }
+export interface StudySession {
+  deckId: number;
+  type: "LEARN" | "REVIEW";
+  timezone: string;
+  order: number[];
+  cards: Card[];
+  total: number;
+}
 
 export type AnswerResult = "FAMILIAR" | "BLURRY" | "FORGOT";
 
 export interface AnswerResponse {
   cardId: number;
+  clientAnswerId: string;
+  accepted: boolean;
   nextCardId: number | null;
-  queue: number[];
   completed: boolean;
   requiresConfirmation: boolean;
 }
