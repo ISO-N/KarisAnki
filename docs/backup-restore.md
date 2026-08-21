@@ -23,14 +23,14 @@ docker compose exec -T postgres pg_dump -U karisanki -d karisanki > backups/kari
 
 ## 恢复
 
-先只停止后端，避免恢复期间写入数据：
+先只停止 `app`，避免恢复期间写入数据：
 
 ```bash
-docker compose stop backend
+docker compose stop app
 docker compose exec -T postgres psql -U karisanki -d karisanki -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 docker compose cp ./backups/karisanki-2026-08-20.dump postgres:/tmp/karisanki.dump
 docker compose exec -T postgres pg_restore -U karisanki -d karisanki --clean --if-exists /tmp/karisanki.dump
-docker compose start backend
+docker compose start app
 ```
 
 备份包含用户、设置、卡组、卡片、卡片状态、答题历史和 Spring Session 数据。请另外在 Docker 卷之外保存一份备份副本。

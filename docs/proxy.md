@@ -17,16 +17,16 @@ async rewrites() {
 
 ## 构建期配置
 
-Next.js standalone 构建会评估 rewrite 目标，因此生产镜像必须在构建时传入 `BACKEND_URL`。Compose 中的 `frontend` 服务已经通过 build arg 传入：
+Next.js standalone 构建会评估 rewrite 目标，因此生产镜像必须在构建时传入 `BACKEND_URL`。根目录 `Dockerfile` 的默认值是 `http://127.0.0.1:8080`，Compose 中的 `app` 服务也通过 build arg 传入相同值：
 
 ```yaml
 build:
-  context: ./frontend
+  context: .
   args:
-    BACKEND_URL: http://backend:8080
+    BACKEND_URL: http://127.0.0.1:8080
 ```
 
-如果你使用自己的构建流程，也需要在 `npm run build` 前设置 `BACKEND_URL`。
+如果你使用自己的构建流程，也需要在 `npm run build` 前设置 `BACKEND_URL` 为同一容器内可达的后端地址。
 
 ## 反向代理
 

@@ -48,7 +48,7 @@ KARISANKI_REGISTRATION_ENABLED=true
 | --- | --- | --- |
 | `SERVER_PORT` | `8080` | 后端端口 |
 | `COOKIE_SECURE` | `false` | 通过 HTTPS 提供服务时设为 `true` |
-| `BACKEND_URL` | `http://localhost:8080` | Next.js rewrite 使用的前端到后端 URL；Docker 镜像必须在构建期传入该变量 |
+| `BACKEND_URL` | `http://127.0.0.1:8080` | Next.js rewrite 使用的前端到后端 URL；Docker 镜像必须在构建期传入该变量 |
 
 ## 后端测试
 
@@ -64,6 +64,6 @@ KARISANKI_REGISTRATION_ENABLED=true
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `BACKEND_URL` | `http://localhost:8080` | 前端容器内使用的后端地址 |
+| `BACKEND_URL` | `http://127.0.0.1:8080` | 单容器内前端使用的后端地址 |
 | `PORT` | `3000` | Compose 暴露的宿主机端口 |
 | `HOSTNAME` | `0.0.0.0` | 前端容器内绑定的地址 |

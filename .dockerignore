@@ -1,0 +1,14 @@
+.git
+**/.git
+**/node_modules
+**/target
+frontend/.next
+.env
+.env.*
+!.env.example
+.agents
+.claude
+.pi
+docs
+openspec
+reference
