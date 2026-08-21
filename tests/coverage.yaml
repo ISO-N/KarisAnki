@@ -78,3 +78,11 @@ coverage:
           - backend/src/test/java/top/kariscode/karisanki/service/TimeServiceTest.java
           - frontend/app/settings/page.test.tsx
           - frontend/e2e/statistics-settings.spec.ts
+  testing:
+    requirements:
+      "*":
+        tests:
+          - backend/src/test/java/top/kariscode/karisanki/ApiContractIntegrationTest.java
+          - scripts/check-spec-coverage.mjs
+          - scripts/docker-smoke.sh
+          - frontend/e2e/*.spec.ts
