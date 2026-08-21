@@ -36,6 +36,8 @@ jobs:
         with:
           context: .
           push: true
+          provenance: false
+          sbom: false
           tags: |
             ghcr.io/${{ steps.image.outputs.owner }}/karisanki:latest
             ghcr.io/${{ steps.image.outputs.owner }}/karisanki:sha-${{ github.sha }}
@@ -60,7 +62,7 @@ jobs:
           fi
 
           versions=""
-          if ! versions="$(gh api "${package_url}/versions?per_page=100" --paginate --jq '.[] | "\(.created_at)\t\(.id)"' 2>ghcr-error.log)"; then
+          if ! versions="$(gh api "${package_url}/versions?per_page=100" --paginate --jq '[.[] | {id, created_at, tags: (.metadata.container.tags // [])}] | sort_by(.created_at) | reverse' 2>ghcr-error.log)"; then
             if grep -Eq '"Not Found"|Not Found' ghcr-error.log; then
               echo "GHCR package does not exist yet; nothing to prune."
               exit 0
@@ -69,15 +71,17 @@ jobs:
             exit 1
           fi
 
-          ids="$(printf '%s\n' "${versions}" | sort -r | tail -n +3 | cut -f2)"
-          if [[ -z "${ids}" ]]; then
-            echo "GHCR package has no more than two versions; nothing to prune."
-            exit 0
-          fi
-
-          echo "Deleting old GHCR package versions:"
-          printf '%s\n' "${ids}" | sed 's/^/  /'
-          while IFS= read -r version_id; do
-            [[ -z "${version_id}" ]] && continue
-            gh api -X DELETE "${package_url}/versions/${version_id}"
-          done <<< "${ids}"
+          keep=2
+          echo "${versions}" | jq -r 'to_entries[] | [(.key + 1 | tostring), .value.id, .value.created_at, (.value.tags | join(","))] | @tsv' |
+          while IFS=$'\t' read -r idx id created tags; do
+            if [[ ",${tags}," == *,latest,* ]]; then
+              echo "keep[latest] id=${id} tags=[${tags}]"
+              continue
+            fi
+            if (( idx <= keep )); then
+              echo "keep[recent #${idx}] id=${id} tags=[${tags}]"
+              continue
+            fi
+            echo "delete id=${id} tags=[${tags}]"
+            gh api -X DELETE "${package_url}/versions/${id}"
+          done
