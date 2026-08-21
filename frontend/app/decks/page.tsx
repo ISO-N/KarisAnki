@@ -1,9 +1,11 @@
 "use client";
-/* eslint-disable react-hooks/set-state-in-effect -- fetch-on-mount is an external data sync */
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { api, apiErrorMessage, clientTimezone } from "@/lib/api";
+import { invalidateApiCache } from "@/lib/api-cache";
+import { useAuth } from "@/lib/auth-context";
+import { useApiData } from "@/lib/use-api-data";
 import {
   BookOpen,
   CalendarClock,
@@ -39,11 +41,15 @@ type PendingAction =
   | null;
 
 export default function DecksPage() {
+  const { user } = useAuth();
   const { t, language } = useI18n();
-  const [decks, setDecks] = useState<Deck[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data: deckData, loading, error, refresh } = useApiData<Deck[]>({
+    path: `/api/decks?timezone=${encodeURIComponent(clientTimezone())}`,
+    auth: "required",
+  });
+  const decks = deckData ?? [];
   const [message, setMessage] = useState("");
+  const [actionError, setActionError] = useState("");
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -52,22 +58,20 @@ export default function DecksPage() {
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [pendingBusy, setPendingBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const data = await api<Deck[]>(`/api/decks?timezone=${encodeURIComponent(clientTimezone())}`);
-      setDecks(data);
-      setError("");
-    } catch (err) {
-      setError(apiErrorMessage(err, language, t("error")));
-    } finally {
-      setLoading(false);
-    }
-  }, [language, t]);
+  const load = useCallback(() => {
+    refresh();
+  }, [refresh]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const invalidateDeckList = useCallback(async () => {
+    if (!user) return;
+    await invalidateApiCache({ type: "deck-list", userId: user.id });
+  }, [user]);
 
+  const invalidateDeckData = useCallback(async (deckId: number) => {
+    if (!user) return;
+    await invalidateApiCache({ type: "deck", userId: user.id, deckId });
+    await invalidateApiCache({ type: "stats", userId: user.id });
+  }, [user]);
   const createDeck = async (event: FormEvent) => {
     event.preventDefault();
     if (!name.trim() || creating) return;
@@ -78,9 +82,10 @@ export default function DecksPage() {
       setName("");
       setCreateOpen(false);
       setMessage(t("deckCreated"));
+      await invalidateDeckList();
       await load();
     } catch (err) {
-      setError(apiErrorMessage(err, language, t("error")));
+      setActionError(apiErrorMessage(err, language, t("error")));
     } finally {
       setCreating(false);
     }
@@ -97,9 +102,11 @@ export default function DecksPage() {
       });
       setRenameTarget(null);
       setMessage(t("deckRenamed"));
+      await invalidateDeckData(renameTarget.id);
+      await invalidateDeckList();
       await load();
     } catch (err) {
-      setError(apiErrorMessage(err, language, t("error")));
+      setActionError(apiErrorMessage(err, language, t("error")));
     }
   };
 
@@ -119,9 +126,11 @@ export default function DecksPage() {
         setMessage(t("deckReset"));
       }
       setPendingAction(null);
+      await invalidateDeckData(deck.id);
+      await invalidateDeckList();
       await load();
     } catch (err) {
-      setError(apiErrorMessage(err, language, t("error")));
+      setActionError(apiErrorMessage(err, language, t("error")));
     } finally {
       setPendingBusy(false);
     }
@@ -149,15 +158,14 @@ export default function DecksPage() {
           </Alert>
         ) : null}
 
-        {error && !loading ? <ErrorState title={t("error")} description={error} onRetry={load} retryLabel={t("retry")} /> : null}
-
+        {error || actionError && !loading ? <ErrorState title={t("error")} description={error || actionError} onRetry={() => { setActionError(""); load(); }} retryLabel={t("retry")} /> : null}
         {loading ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 3 }).map((_, index) => (
               <Skeleton key={index} className="h-44" />
             ))}
           </div>
-        ) : decks.length === 0 && !error ? (
+        ) : decks.length === 0 && !error && !actionError ? (
           <EmptyState
             title={t("emptyDecks")}
             description={t("dashboardEmptyHint")}

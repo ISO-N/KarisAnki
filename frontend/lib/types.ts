@@ -120,3 +120,44 @@ export interface ImportResult {
   created: number;
   skippedDuplicates: number;
 }
+
+export interface BootstrapResponse {
+  user: User;
+  decks: Deck[];
+}
+
+export interface DeckOverview {
+  deck: Deck;
+  cards: CardList;
+}
+
+export interface AnswerBatchItemRequest {
+  clientAnswerId: string;
+  cardId: number;
+  result: AnswerResult;
+  stateVersion: number;
+  previousClientAnswerId: string | null;
+  graduate: boolean;
+  confirmForget: boolean;
+}
+
+export interface AnswerBatchRequest {
+  deckId: number;
+  queueType: "LEARN" | "REVIEW";
+  timezone: string;
+  items: AnswerBatchItemRequest[];
+}
+
+export interface AnswerBatchItemResponse {
+  cardId: number;
+  clientAnswerId: string;
+  accepted: boolean;
+  code: string;
+  nextCardId: number | null;
+  completed: boolean;
+  requiresConfirmation: boolean;
+}
+
+export interface AnswerBatchResponse {
+  results: AnswerBatchItemResponse[];
+}

@@ -17,12 +17,14 @@ public class SettingsService {
 	private final UserRepository userRepository;
 	private final UserSettingsRepository userSettingsRepository;
 	private final PasswordEncoder passwordEncoder;
+	private final StatisticsCacheService statisticsCacheService;
 
 	public SettingsService(UserRepository userRepository, UserSettingsRepository userSettingsRepository,
-			PasswordEncoder passwordEncoder) {
+			PasswordEncoder passwordEncoder, StatisticsCacheService statisticsCacheService) {
 		this.userRepository = userRepository;
 		this.userSettingsRepository = userSettingsRepository;
 		this.passwordEncoder = passwordEncoder;
+		this.statisticsCacheService = statisticsCacheService;
 	}
 
 	@Transactional
@@ -36,6 +38,7 @@ public class SettingsService {
 		settings.setLanguage(request.language());
 		settings.setTheme(request.theme());
 		userSettingsRepository.save(settings);
+		statisticsCacheService.invalidateUser(userId);
 		return new SettingsDtos.SettingsResponse(settings.getUserId(), settings.getRefreshTime(),
 				settings.getLanguage(), settings.getTheme());
 	}

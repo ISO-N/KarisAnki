@@ -8,7 +8,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
+import { clearApiCacheForUser, invalidateApiCache } from "@/lib/api-cache";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import {
@@ -23,6 +25,7 @@ interface AuthContextValue {
   user: User | null;
   loading: boolean;
   refresh: () => Promise<void>;
+  applyAuthenticatedUser: (user: User) => void;
   login: (email: string, password: string, rememberMe: boolean) => Promise<User>;
   register: (
     email: string,
@@ -38,6 +41,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const { setLanguage } = useI18n();
   const { setMode } = useTheme();
   const [user, setUser] = useState<User | null>(null);
@@ -53,7 +57,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [setLanguage, setMode],
   );
 
+  const applyAuthenticatedUser = useCallback(
+    (next: User) => {
+      applyUser(next);
+    },
+    [applyUser],
+  );
+
   const clearUser = useCallback(() => {
+    const cached = readCachedUser();
+    if (cached) {
+      void clearApiCacheForUser(cached.id);
+    }
     setUser(null);
     clearCachedUser();
   }, []);
@@ -78,9 +93,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       Promise.resolve().then(() => {
         if (!cancelled) {
           setUser(cached);
+          setLanguage(cached.settings.language);
+          setMode(cached.settings.theme);
           setLoading(false);
         }
       });
+    }
+
+    if (pathname === "/") {
+      if (!cached) {
+        Promise.resolve().then(() => {
+          if (!cancelled) setLoading(false);
+        });
+      }
+      return () => {
+        cancelled = true;
+      };
     }
 
     api<User>("/api/auth/me")
@@ -99,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [applyUser, clearUser]);
+  }, [applyUser, clearUser, pathname, setLanguage, setMode]);
 
   useEffect(() => {
     const handleUnauthorized = () => clearUser();
@@ -112,6 +140,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: "POST",
       body: JSON.stringify({ email, password, rememberMe }),
     });
+    const cached = readCachedUser();
+    if (cached && cached.id !== next.id) {
+      await clearApiCacheForUser(cached.id);
+    }
     applyUser(next);
     return next;
   };
@@ -127,18 +159,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: "POST",
       body: JSON.stringify({ email, password, inviteCode, rememberMe, language }),
     });
+    const cached = readCachedUser();
+    if (cached && cached.id !== next.id) {
+      await clearApiCacheForUser(cached.id);
+    }
     applyUser(next);
     return next;
   };
 
   const logoutCurrent = async () => {
-    await api<void>("/api/auth/logout", { method: "POST" });
-    clearUser();
+    try {
+      await api<void>("/api/auth/logout", { method: "POST" });
+    } finally {
+      clearUser();
+    }
   };
 
   const logoutAll = async () => {
-    await api<void>("/api/auth/logout-all", { method: "POST" });
-    clearUser();
+    try {
+      await api<void>("/api/auth/logout-all", { method: "POST" });
+    } finally {
+      clearUser();
+    }
   };
 
   const updateSettings = async (settings: Settings) => {
@@ -146,6 +188,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLanguage(settings.language);
     setMode(settings.theme);
     cacheSettings(settings);
+    if (user) {
+      await invalidateApiCache({ type: "deck-list", userId: user.id });
+      await invalidateApiCache({ type: "stats", userId: user.id });
+    }
   };
 
   return (
@@ -154,6 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         loading,
         refresh,
+        applyAuthenticatedUser,
         login,
         register,
         logoutCurrent,

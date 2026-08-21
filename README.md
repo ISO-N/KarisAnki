@@ -36,8 +36,9 @@
 | **账号与认证** | 邮箱注册 / 登录，邀请码门控，内存限流，`KARISANKI_SESSION` 会话（Spring Session JDBC） |
 | **卡组与卡片** | 卡组创建 / 重命名 / 删除，卡片增删改查、分页与搜索，Markdown + KaTeX 渲染 |
 | **学习调度** | 间隔复习与重学队列，`ScheduleEngine` 驱动的答题调度与冲突处理 |
-| **离线学习** | 会话快照 + IndexedDB 本地持久化，弱网 / 短时离线评分与幂等同步 |
-| **统计分析** | 学习进度、待复习 / 重学计数、历史答题统计 |
+| **离线学习** | 会话快照 + IndexedDB 本地持久化，弱网 / 短时离线评分与幂等批量同步 |
+| **网络优化** | Dashboard bootstrap、卡组详情 overview、API 缓存优先与后台刷新、批量答题 |
+| **统计分析** | 学习进度、待复习 / 重学计数、历史答题统计，服务端短期结果缓存 |
 | **用户设置** | 刷新时间、界面语言、主题模式等个性化配置 |
 | **同域部署** | Next.js `rewrites` 将 `/api/*` 转发至后端，无需 CORS / 跨域 Cookie 配置 |
 
@@ -167,15 +168,14 @@ npm run dev                     # http://localhost:3000
 
 | 资源 | 前缀 | 说明 |
 |---|---|---|
-| 认证 | `/api/auth/*` | 注册、登录、注册状态查询 |
-| 卡组 | `/api/decks` | 列表、创建、重命名、删除、选项查询 |
+| 认证 | `/api/auth/*` | 注册、登录、注册状态查询；Dashboard 使用 `/api/bootstrap` |
+| 卡组 | `/api/decks` | 列表、创建、重命名、删除、选项查询；`/api/decks/{deckId}` 返回卡组 overview |
 | 卡片 | `/api/decks/{deckId}/cards` | 增删改查、分页、搜索 |
 | 学习队列 | `/api/decks/{deckId}/queue` | 拉取待学队列 |
 | 学习会话 | `/api/decks/{deckId}/session` | 获取含完整卡片内容的离线会话快照 |
-| 答题 | `/api/answer` | 幂等提交答题，携带 `clientAnswerId` |
-| 统计 | `/api/statistics` | 学习统计与计数 |
+| 答题 | `/api/answer` · `/api/answer/batch` | 幂等单条提交；同会话批量提交，逐项返回结果 |
+| 统计 | `/api/statistics` | 学习统计与计数，服务端短期缓存 |
 | 设置 | `/api/settings` | 用户设置读写 |
-
 统一异常由 `ApiExceptionHandler` 处理，返回结构化错误响应。
 
 ---

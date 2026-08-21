@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 
 import top.kariscode.karisanki.security.UserPrincipal;
 import top.kariscode.karisanki.service.AnswerService;
+import top.kariscode.karisanki.web.dto.AnswerBatchDtos;
 import top.kariscode.karisanki.web.dto.AnswerRequest;
 import top.kariscode.karisanki.web.dto.AnswerResponse;
 
@@ -27,5 +28,11 @@ public class AnswerController {
 	public AnswerResponse answer(@AuthenticationPrincipal UserPrincipal principal,
 			@Valid @RequestBody AnswerRequest request) {
 		return answerService.answer(principal.id(), request);
+	}
+
+	@PostMapping("/answer/batch")
+	public AnswerBatchDtos.AnswerBatchResponse answerBatch(@AuthenticationPrincipal UserPrincipal principal,
+			@Valid @RequestBody AnswerBatchDtos.AnswerBatchRequest request) {
+		return answerService.answerBatch(principal.id(), request);
 	}
 }

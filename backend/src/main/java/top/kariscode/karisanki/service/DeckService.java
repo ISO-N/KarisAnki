@@ -3,6 +3,9 @@ package top.kariscode.karisanki.service;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,22 +27,29 @@ public class DeckService {
 	private final CardStateRepository cardStateRepository;
 	private final DueStateService dueStateService;
 	private final top.kariscode.karisanki.repository.UserRepository userRepository;
+	private final StatisticsCacheService statisticsCacheService;
 
 	public DeckService(DeckRepository deckRepository, CardRepository cardRepository,
 			CardStateRepository cardStateRepository, DueStateService dueStateService,
-			top.kariscode.karisanki.repository.UserRepository userRepository) {
+			top.kariscode.karisanki.repository.UserRepository userRepository,
+			StatisticsCacheService statisticsCacheService) {
 		this.deckRepository = deckRepository;
 		this.cardRepository = cardRepository;
 		this.cardStateRepository = cardStateRepository;
 		this.dueStateService = dueStateService;
 		this.userRepository = userRepository;
+		this.statisticsCacheService = statisticsCacheService;
 	}
 
 	@Transactional
 	public List<DeckDtos.DeckResponse> list(Long userId, LocalDate today) {
 		dueStateService.markDueStates(userId, today, Instant.now());
+		Map<Long, DeckCount> counts = cardStateRepository.countActiveByUser(userId, today).stream()
+				.collect(Collectors.toMap(CardStateRepository.DeckCountProjection::getDeckId,
+						projection -> new DeckCount(projection.getNewCount(), projection.getRelearnCount(),
+								projection.getDueCount())));
 		return deckRepository.findActiveByUserIdOrderByCreatedAtDesc(userId).stream()
-				.map(deck -> toResponse(deck, today))
+				.map(deck -> toResponse(deck, today, counts.getOrDefault(deck.getId(), DeckCount.empty())))
 				.toList();
 	}
 
@@ -48,6 +58,7 @@ public class DeckService {
 		String cleanName = cleanName(name);
 		Deck deck = new Deck(requireUser(userId), cleanName);
 		deckRepository.save(deck);
+		statisticsCacheService.invalidateUser(userId);
 		return new DeckDtos.DeckResponse(deck.getId(), deck.getName(), 0, 0, 0, deck.getCreatedAt());
 	}
 
@@ -56,6 +67,7 @@ public class DeckService {
 		Deck deck = requireDeck(userId, deckId);
 		deck.rename(cleanName(name));
 		deckRepository.save(deck);
+		statisticsCacheService.invalidateUser(userId);
 		return toResponse(deck, today);
 	}
 
@@ -65,6 +77,7 @@ public class DeckService {
 		cardRepository.findActiveByDeckForUser(deckId, userId).forEach(Card::delete);
 		deck.delete();
 		deckRepository.save(deck);
+		statisticsCacheService.invalidateUser(userId);
 	}
 
 	@Transactional
@@ -77,6 +90,7 @@ public class DeckService {
 			resetState(card.getState());
 			cardRepository.save(card);
 		}
+		statisticsCacheService.invalidateDeck(userId, deckId);
 	}
 
 	@Transactional
@@ -87,6 +101,13 @@ public class DeckService {
 		card.setPosition(nextPosition);
 		resetState(card.getState());
 		cardRepository.save(card);
+		statisticsCacheService.invalidateDeck(userId, card.getDeck().getId());
+	}
+
+	@Transactional(readOnly = true)
+	public DeckDtos.DeckResponse get(Long userId, Long deckId, LocalDate today) {
+		Deck deck = requireDeck(userId, deckId);
+		return toResponse(deck, today);
 	}
 
 	@Transactional(readOnly = true)
@@ -107,9 +128,19 @@ public class DeckService {
 	}
 
 	private DeckDtos.DeckResponse toResponse(Deck deck, LocalDate today) {
-		long newCount = cardStateRepository.countNewByDeckForUser(deck.getId(), deck.getUser().getId());
-		long relearnCount = cardStateRepository.countRelearnByDeckForUser(deck.getId(), deck.getUser().getId());
-		long dueCount = cardStateRepository.countDueByDeckForUser(deck.getId(), deck.getUser().getId(), today);
+		return toResponse(deck, today, null);
+	}
+
+	private DeckDtos.DeckResponse toResponse(Deck deck, LocalDate today, DeckCount count) {
+		long newCount = count == null
+				? cardStateRepository.countNewByDeckForUser(deck.getId(), deck.getUser().getId())
+				: count.newCount();
+		long relearnCount = count == null
+				? cardStateRepository.countRelearnByDeckForUser(deck.getId(), deck.getUser().getId())
+				: count.relearnCount();
+		long dueCount = count == null
+				? cardStateRepository.countDueByDeckForUser(deck.getId(), deck.getUser().getId(), today)
+				: count.dueCount();
 		return new DeckDtos.DeckResponse(deck.getId(), deck.getName(), newCount, relearnCount, dueCount,
 				deck.getCreatedAt());
 	}
@@ -128,5 +159,11 @@ public class DeckService {
 	private top.kariscode.karisanki.domain.user.User requireUser(Long userId) {
 		return userRepository.findById(userId)
 				.orElseThrow(() -> BusinessException.unauthorized("unauthenticated", "登录状态已失效"));
+	}
+
+	private record DeckCount(long newCount, long relearnCount, long dueCount) {
+		private static DeckCount empty() {
+			return new DeckCount(0, 0, 0);
+		}
 	}
 }

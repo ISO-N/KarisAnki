@@ -1,5 +1,5 @@
 const DB_NAME = "karisanki-offline";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -20,6 +20,10 @@ export function openDatabase() {
         const outbox = db.createObjectStore("outbox", { keyPath: "clientAnswerId" });
         outbox.createIndex("by-session-created", ["sessionKey", "createdAt"], { unique: false });
         outbox.createIndex("by-status-created", ["status", "createdAt"], { unique: false });
+      }
+      if (!db.objectStoreNames.contains("api-cache")) {
+        const apiCache = db.createObjectStore("api-cache", { keyPath: "key" });
+        apiCache.createIndex("by-user", "userId", { unique: false });
       }
     };
     request.onsuccess = () => resolve(request.result);

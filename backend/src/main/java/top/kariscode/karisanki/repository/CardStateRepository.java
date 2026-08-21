@@ -86,6 +86,32 @@ public interface CardStateRepository extends JpaRepository<CardState, Long> {
 	List<CardState> findActiveByDeckForUser(@Param("deckId") Long deckId, @Param("userId") Long userId);
 
 	@Query("""
+			select d.id as deckId,
+			  sum(case when cs.queueType = top.kariscode.karisanki.domain.CardQueue.NEW then 1L else 0L end) as newCount,
+			  sum(case when cs.queueType = top.kariscode.karisanki.domain.CardQueue.RELEARN then 1L else 0L end) as relearnCount,
+			  sum(case when cs.queueType = top.kariscode.karisanki.domain.CardQueue.REVIEW
+			    and cs.stage between 0 and 8
+			    and (cs.dueSince is not null or (cs.dueDate is not null and cs.dueDate <= :today))
+			    then 1L else 0L end) as dueCount
+			from CardState cs
+			join cs.card c
+			join c.deck d
+			where d.user.id = :userId and c.deletedAt is null and d.deletedAt is null
+			group by d.id
+			""")
+	List<DeckCountProjection> countActiveByUser(@Param("userId") Long userId, @Param("today") LocalDate today);
+
+	interface DeckCountProjection {
+		Long getDeckId();
+
+		long getNewCount();
+
+		long getRelearnCount();
+
+		long getDueCount();
+	}
+
+	@Query("""
 			select count(cs) from CardState cs
 			join cs.card c
 			join c.deck d
