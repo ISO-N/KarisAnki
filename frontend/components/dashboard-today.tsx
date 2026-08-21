@@ -1,19 +1,31 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { BookOpen, CalendarClock, Layers, RefreshCcw } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  deckLearnCount,
+  deckReviewCount,
+  filterLearnDecks,
+  filterReviewDecks,
+} from "@/lib/dashboard-decks";
 import { cn } from "@/lib/utils";
+import type { Deck } from "@/lib/types";
 
 interface DashboardTodayProps {
-  newCount: number;
-  relearnCount: number;
-  dueCount: number;
-  learnHref: string;
-  reviewHref: string;
+  decks: Deck[];
   decksHref: string;
   continueLearningLabel: string;
   continueReviewLabel: string;
@@ -29,11 +41,7 @@ interface DashboardTodayProps {
 }
 
 export function DashboardToday({
-  newCount,
-  relearnCount,
-  dueCount,
-  learnHref,
-  reviewHref,
+  decks,
   decksHref,
   continueLearningLabel,
   continueReviewLabel,
@@ -47,6 +55,12 @@ export function DashboardToday({
   dueLabel,
   todayLabel,
 }: DashboardTodayProps) {
+  const router = useRouter();
+  const newCount = decks.reduce((sum, deck) => sum + deck.newCount, 0);
+  const relearnCount = decks.reduce((sum, deck) => sum + deck.relearnCount, 0);
+  const dueCount = decks.reduce((sum, deck) => sum + deck.dueCount, 0);
+  const learnDecks = filterLearnDecks(decks);
+  const reviewDecks = filterReviewDecks(decks);
   const hasTasks = newCount > 0 || relearnCount > 0 || dueCount > 0;
 
   return (
@@ -72,23 +86,55 @@ export function DashboardToday({
           </div>
           {hasTasks ? (
             <div className="flex flex-col gap-2 sm:flex-row">
-              {newCount > 0 || relearnCount > 0 ? (
-                <Link
-                  href={learnHref}
-                  className={cn(buttonVariants({ size: "lg" }), "min-h-11")}
-                >
-                  <BookOpen data-icon="inline-start" />
-                  {continueLearningLabel}
-                </Link>
+              {learnDecks.length > 0 ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger render={<Button size="lg" className="min-h-11" />}>
+                    <BookOpen data-icon="inline-start" />
+                    {continueLearningLabel}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="max-h-80 w-64">
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>{continueLearningLabel}</DropdownMenuLabel>
+                    </DropdownMenuGroup>
+                    {learnDecks.map((deck) => (
+                      <DropdownMenuItem
+                        key={deck.id}
+                        onClick={() => router.push(`/decks/${deck.id}/learn`)}
+                      >
+                        <span className="min-w-0 flex-1 truncate">{deck.name}</span>
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {deckLearnCount(deck)}
+                        </span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : null}
-              {dueCount > 0 || relearnCount > 0 ? (
-                <Link
-                  href={reviewHref}
-                  className={cn(buttonVariants({ variant: "outline", size: "lg" }), "min-h-11")}
-                >
-                  <BookOpen data-icon="inline-start" />
-                  {continueReviewLabel}
-                </Link>
+              {reviewDecks.length > 0 ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={<Button variant="outline" size="lg" className="min-h-11" />}
+                  >
+                    <BookOpen data-icon="inline-start" />
+                    {continueReviewLabel}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="max-h-80 w-64">
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>{continueReviewLabel}</DropdownMenuLabel>
+                    </DropdownMenuGroup>
+                    {reviewDecks.map((deck) => (
+                      <DropdownMenuItem
+                        key={deck.id}
+                        onClick={() => router.push(`/decks/${deck.id}/review`)}
+                      >
+                        <span className="min-w-0 flex-1 truncate">{deck.name}</span>
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {deckReviewCount(deck)}
+                        </span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : null}
             </div>
           ) : (

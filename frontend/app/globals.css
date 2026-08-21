@@ -28,10 +28,13 @@
   --destructive-foreground: #ffffff;
   --success: #237a55;
   --success-soft: #e1f3ea;
+  --success-foreground: #ffffff;
   --warning: #8a5710;
   --warning-soft: #f5e6c8;
+  --warning-foreground: #ffffff;
   --danger: #b93a35;
   --danger-soft: #fbe5e3;
+  --danger-foreground: #ffffff;
   --border: #dfe4e1;
   --input: #dfe4e1;
   --ring: #0e7773;
@@ -90,10 +93,13 @@
   --destructive-foreground: #101718;
   --success: #5fc39a;
   --success-soft: #173c2f;
+  --success-foreground: #101718;
   --warning: #e3a54d;
   --warning-soft: #3d2d16;
+  --warning-foreground: #101718;
   --danger: #ef817b;
   --danger-soft: #48211f;
+  --danger-foreground: #101718;
   --border: #2c3939;
   --input: #2c3939;
   --ring: #5bc7c0;
@@ -144,10 +150,13 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
+  --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
+  --color-warning-foreground: var(--warning-foreground);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-danger-foreground: var(--danger-foreground);
   --color-focus-ring: var(--focus-ring);
   --color-border: var(--border);
   --color-input: var(--input);
@@ -265,6 +274,19 @@ a {
   line-height: 1.75;
   word-break: break-word;
   max-width: var(--max-line-length);
+}
+
+.markdown-body--centered .markdown-body {
+  text-align: center;
+}
+
+.markdown-body--centered .markdown-body pre,
+.markdown-body--centered .markdown-body ul,
+.markdown-body--centered .markdown-body ol,
+.markdown-body--centered .markdown-body table,
+.markdown-body--centered .markdown-body blockquote,
+.markdown-body--centered .markdown-body .katex-display {
+  text-align: left;
 }
 
 .markdown-body h1,

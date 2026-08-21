@@ -19,6 +19,7 @@ import {
   chunkOutboxEntries,
   OUTBOX_BATCH_SIZE,
 } from "@/lib/offline/outbox";
+import { mergeAcceptedAnswerOrder } from "@/lib/offline/session-merge";
 import { mutateLocalQueue } from "@/lib/offline/queue-mutation";
 import { loadStoredSession, saveStoredSession, updateStoredSession, clearStoredSession } from "@/lib/offline/session-store";
 import {
@@ -218,13 +219,15 @@ export function useOfflineSession(
     async (entry: OutboxEntry, response: AnswerResponse) => {
       const current = sessionRef.current;
       if (!current) return;
-      let order = current.order.filter((id) => id !== entry.cardId);
-      if (response.nextCardId !== null && response.nextCardId !== order[0] && order.includes(response.nextCardId)) {
-        order = [response.nextCardId, ...order.filter((id) => id !== response.nextCardId)];
-      }
-      if (response.completed) {
-        order = [];
-      }
+      const currentCard = current.cards.find((item) => item.id === entry.cardId);
+      const reinserted = entry.reinserted ?? currentCard?.status === "relearn";
+      const order = mergeAcceptedAnswerOrder({
+        order: current.order,
+        cardId: entry.cardId,
+        nextCardId: response.nextCardId,
+        completed: response.completed,
+        reinserted,
+      });
       const next: StoredSession = {
         ...current,
         order,
@@ -541,6 +544,7 @@ export function useOfflineSession(
         previousClientAnswerId: previous,
         graduate: extra?.graduate,
         confirmForget: extra?.confirmForget,
+        reinserted: mutation.reinserted,
       });
 
       const next: StoredSession = {

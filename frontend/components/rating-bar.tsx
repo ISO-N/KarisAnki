@@ -23,7 +23,7 @@ const options = [
 
 const toneClasses = {
   FAMILIAR: "bg-success-soft text-success hover:bg-success/20 data-[pressed=true]:bg-success data-[pressed=true]:text-success-foreground data-[pressed=true]:ring-1 data-[pressed=true]:ring-success",
-  BLURRY: "bg-warning-soft text-warning hover:bg-warning/20 data-[pressed=true]:bg-warning data-[pressed=true]:text-white data-[pressed=true]:ring-1 data-[pressed=true]:ring-warning",
+  BLURRY: "bg-warning-soft text-warning hover:bg-warning/20 data-[pressed=true]:bg-warning data-[pressed=true]:text-warning-foreground data-[pressed=true]:ring-1 data-[pressed=true]:ring-warning",
   FORGOT: "bg-danger-soft text-danger hover:bg-danger/20 data-[pressed=true]:bg-danger data-[pressed=true]:text-danger-foreground data-[pressed=true]:ring-1 data-[pressed=true]:ring-danger",
 };
 

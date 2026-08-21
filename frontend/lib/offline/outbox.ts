@@ -12,6 +12,7 @@ export interface CreateOutboxEntryInput {
   previousClientAnswerId?: string | null;
   graduate?: boolean;
   confirmForget?: boolean;
+  reinserted?: boolean;
 }
 
 export function newClientAnswerId(): string {
@@ -40,6 +41,7 @@ export async function createOutboxEntry(input: CreateOutboxEntryInput): Promise<
     previousClientAnswerId: input.previousClientAnswerId ?? null,
     graduate: input.graduate ?? false,
     confirmForget: input.confirmForget ?? false,
+    reinserted: input.reinserted ?? false,
     status: "PENDING",
     createdAt: now,
     updatedAt: now,
