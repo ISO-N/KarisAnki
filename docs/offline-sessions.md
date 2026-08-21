@@ -92,6 +92,7 @@ POST /api/answer/batch
 ## 离线重学链
 
 离线时本地快照中的 `stateVersion` 不会随本地评分更新。同一张重学卡再次出现时，前端会把上一次该卡片的 `clientAnswerId` 作为 `previousClientAnswerId` 提交。服务端在 `stateVersion` 不一致时，会查找同一用户、同一卡片、已接受的 `clientRequestId` 来接受这条本地链，而不是直接返回 `queue_refresh`。
+服务端确认后，前端会保留本地已按 `2^n` 重插的重学卡位置；只有权威刷新或冲突恢复才会重新生成完整队列。
 
 ## IndexedDB
 

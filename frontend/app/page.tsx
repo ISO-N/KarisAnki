@@ -45,11 +45,7 @@ export default function DashboardPage() {
   });
 
   const decks: Deck[] = data?.decks ?? [];
-  const newCount = decks.reduce((sum, deck) => sum + deck.newCount, 0);
-  const relearnCount = decks.reduce((sum, deck) => sum + deck.relearnCount, 0);
-  const dueCount = decks.reduce((sum, deck) => sum + deck.dueCount, 0);
-  const learnDeck = decks.find((deck) => deck.newCount > 0 || deck.relearnCount > 0);
-  const reviewDeck = decks.find((deck) => deck.dueCount > 0 || deck.relearnCount > 0);
+
 
   return (
     <div className="dashboard-viewport flex flex-col gap-6">
@@ -61,11 +57,7 @@ export default function DashboardPage() {
         <ErrorState title={t("error")} description={error} onRetry={refresh} retryLabel={t("retry")} />
       ) : (
         <DashboardToday
-          newCount={newCount}
-          relearnCount={relearnCount}
-          dueCount={dueCount}
-          learnHref={learnDeck ? `/decks/${learnDeck.id}/learn` : "/decks"}
-          reviewHref={reviewDeck ? `/decks/${reviewDeck.id}/review` : "/decks"}
+          decks={decks}
           decksHref="/decks"
           continueLearningLabel={t("continueLearning")}
           continueReviewLabel={t("continueReview")}

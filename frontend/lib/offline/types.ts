@@ -15,6 +15,7 @@ export interface OutboxEntry {
   previousClientAnswerId: string | null;
   graduate: boolean;
   confirmForget: boolean;
+  reinserted?: boolean;
   status: OutboxStatus;
   createdAt: number;
   updatedAt: number;

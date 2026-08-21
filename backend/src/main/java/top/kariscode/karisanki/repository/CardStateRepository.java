@@ -89,6 +89,10 @@ public interface CardStateRepository extends JpaRepository<CardState, Long> {
 			select d.id as deckId,
 			  sum(case when cs.queueType = top.kariscode.karisanki.domain.CardQueue.NEW then 1L else 0L end) as newCount,
 			  sum(case when cs.queueType = top.kariscode.karisanki.domain.CardQueue.RELEARN then 1L else 0L end) as relearnCount,
+			  sum(case when cs.queueType = top.kariscode.karisanki.domain.CardQueue.RELEARN
+			    and cs.relearnOrigin = top.kariscode.karisanki.domain.RelearnOrigin.LEARN then 1L else 0L end) as learnRelearnCount,
+			  sum(case when cs.queueType = top.kariscode.karisanki.domain.CardQueue.RELEARN
+			    and cs.relearnOrigin = top.kariscode.karisanki.domain.RelearnOrigin.REVIEW then 1L else 0L end) as reviewRelearnCount,
 			  sum(case when cs.queueType = top.kariscode.karisanki.domain.CardQueue.REVIEW
 			    and cs.stage between 0 and 8
 			    and (cs.dueSince is not null or (cs.dueDate is not null and cs.dueDate <= :today))
@@ -107,6 +111,10 @@ public interface CardStateRepository extends JpaRepository<CardState, Long> {
 		long getNewCount();
 
 		long getRelearnCount();
+
+		long getLearnRelearnCount();
+
+		long getReviewRelearnCount();
 
 		long getDueCount();
 	}
@@ -128,6 +136,17 @@ public interface CardStateRepository extends JpaRepository<CardState, Long> {
 			  and cs.queueType = top.kariscode.karisanki.domain.CardQueue.RELEARN
 			""")
 	long countRelearnByDeckForUser(@Param("deckId") Long deckId, @Param("userId") Long userId);
+
+	@Query("""
+			select count(cs) from CardState cs
+			join cs.card c
+			join c.deck d
+			where d.id = :deckId and d.user.id = :userId and c.deletedAt is null and d.deletedAt is null
+			  and cs.queueType = top.kariscode.karisanki.domain.CardQueue.RELEARN
+			  and cs.relearnOrigin = :origin
+			""")
+	long countRelearnByDeckAndOriginForUser(@Param("deckId") Long deckId, @Param("userId") Long userId,
+			@Param("origin") RelearnOrigin origin);
 
 	@Query("""
 			select count(cs) from CardState cs

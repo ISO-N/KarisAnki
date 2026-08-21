@@ -24,6 +24,8 @@ export interface Deck {
   name: string;
   newCount: number;
   relearnCount: number;
+  learnRelearnCount: number;
+  reviewRelearnCount: number;
   dueCount: number;
   createdAt: string;
 }

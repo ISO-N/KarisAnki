@@ -39,7 +39,9 @@ export function ReviewCard({ card, phase, statusLabel, stageLabel, frontLabel, b
               )}
             >
               <div className="mb-2 text-xs font-medium text-muted-foreground">{frontLabel}</div>
-              <MarkdownContent content={card.front} />
+              <div className="markdown-body--centered">
+                <MarkdownContent content={card.front} />
+              </div>
             </div>
 
             {revealed ? (
@@ -50,7 +52,9 @@ export function ReviewCard({ card, phase, statusLabel, stageLabel, frontLabel, b
                 className="border-t pt-6"
               >
                 <div className="mb-2 text-xs font-medium text-primary">{backLabel}</div>
-                <MarkdownContent content={card.back} />
+                <div className="markdown-body--centered">
+                  <MarkdownContent content={card.back} />
+                </div>
               </motion.div>
             ) : null}
           </div>

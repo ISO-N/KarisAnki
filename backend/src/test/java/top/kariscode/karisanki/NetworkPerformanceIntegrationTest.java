@@ -190,6 +190,72 @@ class NetworkPerformanceIntegrationTest {
 	}
 
 	@Test
+	void batchRelearnQueueSimulationMatchesSequentialAnswersForSameCard() throws Exception {
+		String user = registerAndLogin();
+		long batchDeck = createDeck("Batch Same Relearn", user);
+		long singleDeck = createDeck("Single Same Relearn", user);
+		long b1 = createCard(batchDeck, "B1", "", user);
+		long b2 = createCard(batchDeck, "B2", "", user);
+		long b3 = createCard(batchDeck, "B3", "", user);
+		long b4 = createCard(batchDeck, "B4", "", user);
+		long b5 = createCard(batchDeck, "B5", "", user);
+		long s1 = createCard(singleDeck, "S1", "", user);
+		long s2 = createCard(singleDeck, "S2", "", user);
+		long s3 = createCard(singleDeck, "S3", "", user);
+		long s4 = createCard(singleDeck, "S4", "", user);
+		long s5 = createCard(singleDeck, "S5", "", user);
+		long batchRelearn = createCard(batchDeck, "BR", "", user);
+		long singleRelearn = createCard(singleDeck, "SR", "", user);
+
+		long version = stateVersion(batchRelearn, user);
+		String id1 = "same-b1-" + System.nanoTime();
+		String id2 = "same-b2-" + System.nanoTime();
+		String id3 = "same-b3-" + System.nanoTime();
+		String id4 = "same-b4-" + System.nanoTime();
+
+		String firstBody = batchBody(batchDeck, """
+				[
+				  {"clientAnswerId":"%s","cardId":%d,"result":"BLURRY","queueType":"LEARN","timezone":"UTC","stateVersion":%d},
+				  {"clientAnswerId":"%s","cardId":%d,"result":"FAMILIAR","queueType":"LEARN","timezone":"UTC","stateVersion":%d,"previousClientAnswerId":"%s"},
+				  {"clientAnswerId":"%s","cardId":%d,"result":"FAMILIAR","queueType":"LEARN","timezone":"UTC","stateVersion":%d,"previousClientAnswerId":"%s"}
+				]
+				""".formatted(id1, batchRelearn, version, id2, batchRelearn, version, id1, id3, batchRelearn, version, id2));
+
+		JsonNode firstBatch = jsonNode(postJson("/api/answer/batch", firstBody, user)
+				.andExpect(status().isOk()).andReturn());
+		JsonNode firstSingle = jsonNode(apiAnswer(singleRelearn, "BLURRY", user).andExpect(status().isOk()).andReturn());
+		JsonNode secondSingle = jsonNode(apiAnswer(singleRelearn, "FAMILIAR", user).andExpect(status().isOk()).andReturn());
+		JsonNode thirdSingle = jsonNode(apiAnswer(singleRelearn, "FAMILIAR", user).andExpect(status().isOk()).andReturn());
+		assertEquals(mapSingleToBatch(firstSingle.get("nextCardId").asLong(), b1, b2, b3, s1, s2, s3),
+				firstBatch.get("results").get(0).get("nextCardId").asLong());
+		assertEquals(mapSingleToBatch(secondSingle.get("nextCardId").asLong(), b1, b2, b3, s1, s2, s3),
+				firstBatch.get("results").get(1).get("nextCardId").asLong());
+		assertEquals(mapSingleToBatch(thirdSingle.get("nextCardId").asLong(), b1, b2, b3, s1, s2, s3),
+				firstBatch.get("results").get(2).get("nextCardId").asLong());
+
+		JsonNode batchQueueAfterThree = jsonNode(getJson("/api/decks/" + batchDeck + "/queue?type=LEARN&timezone=UTC", user).andReturn());
+		JsonNode singleQueueAfterThree = jsonNode(getJson("/api/decks/" + singleDeck + "/queue?type=LEARN&timezone=UTC", user).andReturn());
+		assertEquals(batchRelearn, batchQueueAfterThree.get("cardIds").get(4).asLong());
+		assertEquals(singleRelearn, singleQueueAfterThree.get("cardIds").get(4).asLong());
+
+		String secondBody = batchBody(batchDeck, """
+				[
+				  {"clientAnswerId":"%s","cardId":%d,"result":"BLURRY","queueType":"LEARN","timezone":"UTC","stateVersion":%d,"previousClientAnswerId":"%s"}
+				]
+				""".formatted(id4, batchRelearn, version, id3));
+		JsonNode secondBatch = jsonNode(postJson("/api/answer/batch", secondBody, user)
+				.andExpect(status().isOk()).andReturn());
+		JsonNode fourthSingle = jsonNode(apiAnswer(singleRelearn, "BLURRY", user).andExpect(status().isOk()).andReturn());
+		assertEquals(mapSingleToBatch(fourthSingle.get("nextCardId").asLong(), b1, b2, b3, s1, s2, s3),
+				secondBatch.get("results").get(0).get("nextCardId").asLong());
+
+		JsonNode batchFinal = jsonNode(getJson("/api/decks/" + batchDeck + "/queue?type=LEARN&timezone=UTC", user).andReturn());
+		JsonNode singleFinal = jsonNode(getJson("/api/decks/" + singleDeck + "/queue?type=LEARN&timezone=UTC", user).andReturn());
+		assertEquals(batchRelearn, batchFinal.get("cardIds").get(1).asLong());
+		assertEquals(singleRelearn, singleFinal.get("cardIds").get(1).asLong());
+	}
+
+	@Test
 	void batchRejectsMoreThanFiftyItemsWithExplicitError() throws Exception {
 		String user = registerAndLogin();
 		StringBuilder items = new StringBuilder("[");

@@ -10,8 +10,8 @@ public final class DeckDtos {
 	private DeckDtos() {
 	}
 
-	public record DeckResponse(Long id, String name, long newCount, long relearnCount, long dueCount,
-			Instant createdAt) {
+	public record DeckResponse(Long id, String name, long newCount, long relearnCount, long learnRelearnCount,
+			long reviewRelearnCount, long dueCount, Instant createdAt) {
 	}
 	public record DeckOverviewResponse(DeckResponse deck, CardDtos.CardListResponse cards) {
 	}
