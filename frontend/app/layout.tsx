@@ -4,6 +4,8 @@ import "./globals.css";
 import "katex/dist/katex.min.css";
 import { AppProviders } from "@/lib/app-providers";
 import { AppNav } from "@/components/app-nav";
+import { PageTransition } from "@/components/page-transition";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,12 +32,16 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       >
-        <AppProviders>
-          <div className="app-shell">
-            <AppNav />
-            <main className="app-main">{children}</main>
-          </div>
-        </AppProviders>
+        <TooltipProvider delay={250}>
+          <AppProviders>
+            <div className="app-shell">
+              <AppNav />
+              <main className="app-main">
+                <PageTransition>{children}</PageTransition>
+              </main>
+            </div>
+          </AppProviders>
+        </TooltipProvider>
       </body>
     </html>
   );
