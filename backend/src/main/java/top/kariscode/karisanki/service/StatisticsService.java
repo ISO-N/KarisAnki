@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import top.kariscode.karisanki.domain.AnswerResult;
 import top.kariscode.karisanki.domain.CardQueue;
+import top.kariscode.karisanki.domain.StudyQueue;
 import top.kariscode.karisanki.domain.StudyScene;
 import top.kariscode.karisanki.domain.deck.AnswerEvent;
 import top.kariscode.karisanki.domain.deck.CardState;
@@ -77,7 +78,8 @@ public class StatisticsService {
 				.count();
 		long reviewedToday = events.stream()
 				.filter(event -> event.getLearningDay().equals(learningDay))
-				.filter(event -> event.getScene() == StudyScene.REVIEW || event.getScene() == StudyScene.RELEARN)
+				.filter(event -> event.getScene() == StudyScene.REVIEW
+						|| (event.getScene() == StudyScene.RELEARN && event.getQueueType() == StudyQueue.REVIEW))
 				.count();
 		long tomorrowDue = countTomorrowDue(states, tomorrow);
 		long relearnCount = states.stream().filter(state -> state.getQueueType() == CardQueue.RELEARN).count();

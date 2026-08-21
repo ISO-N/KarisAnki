@@ -287,6 +287,66 @@ class ApplicationIntegrationTest {
 	}
 
 	@Test
+	void learningRelearnCompletionCountsOnlyAsLearnedToday() throws Exception {
+		String user = registerAndLogin();
+		long deckId = createDeck("Learn Relearn", user);
+		long card = createCard(deckId, "Question", "Answer", user);
+
+		answerCard(card, "BLURRY", "LEARN", "UTC", user).andExpect(status().isOk());
+		answerCard(card, "FAMILIAR", "LEARN", "UTC", user).andExpect(status().isOk());
+		answerCard(card, "FAMILIAR", "LEARN", "UTC", user).andExpect(status().isOk());
+		answerCard(card, "FAMILIAR", "LEARN", "UTC", user).andExpect(status().isOk());
+
+		JsonNode stats = jsonNode(getJson("/api/statistics?timezone=UTC", user)
+				.andExpect(status().isOk()).andReturn());
+		assertEquals(1, stats.get("learnedToday").asLong());
+		assertEquals(0, stats.get("reviewedToday").asLong());
+	}
+
+	@Test
+	void reviewTriggeredRelearnCountsAsReviewedToday() throws Exception {
+		String user = registerAndLogin();
+		Long userId = userIdFromCookie(user);
+		long deckId = createDeck("Review Relearn", user);
+		long card = createCard(deckId, "Question", "Answer", user);
+		setReviewState(card, 0, LocalDate.now(ZoneOffset.UTC), userId);
+
+		answerCard(card, "BLURRY", "REVIEW", "UTC", user).andExpect(status().isOk());
+		answerCard(card, "FAMILIAR", "REVIEW", "UTC", user).andExpect(status().isOk());
+
+		JsonNode stats = jsonNode(getJson("/api/statistics?timezone=UTC", user)
+				.andExpect(status().isOk()).andReturn());
+		assertEquals(0, stats.get("learnedToday").asLong());
+		assertEquals(2, stats.get("reviewedToday").asLong());
+	}
+
+	@Test
+	void deckCountsSplitRelearnByOrigin() throws Exception {
+		String user = registerAndLogin();
+		Long userId = userIdFromCookie(user);
+		long deckId = createDeck("Split Relearn", user);
+		long learnCard = createCard(deckId, "Learn Relearn", "", user);
+		long reviewCard = createCard(deckId, "Review Relearn", "", user);
+		setRelearnState(learnCard, -1, 1, userId);
+
+		var reviewState = cardStateRepository.findActiveByCardIdForUser(reviewCard, userId).orElseThrow();
+		reviewState.setStage(0);
+		reviewState.setQueueType(top.kariscode.karisanki.domain.CardQueue.RELEARN);
+		reviewState.setRelearnMode(top.kariscode.karisanki.domain.RelearnMode.BLURRY);
+		reviewState.setRelearnOrigin(top.kariscode.karisanki.domain.RelearnOrigin.REVIEW);
+		reviewState.setRelearnCorrectCount(1);
+		reviewState.setDueDate(LocalDate.now(ZoneOffset.UTC));
+		reviewState.setDueSince(null);
+		cardStateRepository.save(reviewState);
+
+		getJson("/api/decks?timezone=UTC", user)
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$[0].relearnCount").value(2))
+				.andExpect(jsonPath("$[0].learnRelearnCount").value(1))
+				.andExpect(jsonPath("$[0].reviewRelearnCount").value(1));
+	}
+
+	@Test
 	void statisticsReportTomorrowRelearnRetentionAndForecast() throws Exception {
 		String user = registerAndLogin();
 		long deckId = createDeck("Stats", user);
@@ -316,7 +376,7 @@ class ApplicationIntegrationTest {
 		MvcResult statsResult = getJson("/api/statistics?timezone=UTC", user).andExpect(status().isOk()).andReturn();
 		JsonNode stats = jsonNode(statsResult);
 		assertEquals(1, stats.get("learnedToday").asLong());
-		assertEquals(2, stats.get("reviewedToday").asLong());
+		assertEquals(1, stats.get("reviewedToday").asLong());
 		assertEquals(2, stats.get("tomorrowDue").asLong());
 		assertEquals(1, stats.get("relearnCount").asLong());
 		assertEquals(100.0, stats.get("retentionRate").asDouble(), 0.001);

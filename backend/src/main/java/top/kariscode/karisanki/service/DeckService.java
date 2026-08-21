@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import top.kariscode.karisanki.domain.RelearnOrigin;
 import top.kariscode.karisanki.domain.deck.Card;
 import top.kariscode.karisanki.domain.deck.CardState;
 import top.kariscode.karisanki.domain.deck.Deck;
@@ -47,7 +48,7 @@ public class DeckService {
 		Map<Long, DeckCount> counts = cardStateRepository.countActiveByUser(userId, today).stream()
 				.collect(Collectors.toMap(CardStateRepository.DeckCountProjection::getDeckId,
 						projection -> new DeckCount(projection.getNewCount(), projection.getRelearnCount(),
-								projection.getDueCount())));
+								projection.getLearnRelearnCount(), projection.getReviewRelearnCount(), projection.getDueCount())));
 		return deckRepository.findActiveByUserIdOrderByCreatedAtDesc(userId).stream()
 				.map(deck -> toResponse(deck, today, counts.getOrDefault(deck.getId(), DeckCount.empty())))
 				.toList();
@@ -59,7 +60,7 @@ public class DeckService {
 		Deck deck = new Deck(requireUser(userId), cleanName);
 		deckRepository.save(deck);
 		statisticsCacheService.invalidateUser(userId);
-		return new DeckDtos.DeckResponse(deck.getId(), deck.getName(), 0, 0, 0, deck.getCreatedAt());
+		return new DeckDtos.DeckResponse(deck.getId(), deck.getName(), 0, 0, 0, 0, 0, deck.getCreatedAt());
 	}
 
 	@Transactional
@@ -138,11 +139,19 @@ public class DeckService {
 		long relearnCount = count == null
 				? cardStateRepository.countRelearnByDeckForUser(deck.getId(), deck.getUser().getId())
 				: count.relearnCount();
+		long learnRelearnCount = count == null
+				? cardStateRepository.countRelearnByDeckAndOriginForUser(deck.getId(), deck.getUser().getId(),
+						RelearnOrigin.LEARN)
+				: count.learnRelearnCount();
+		long reviewRelearnCount = count == null
+				? cardStateRepository.countRelearnByDeckAndOriginForUser(deck.getId(), deck.getUser().getId(),
+						RelearnOrigin.REVIEW)
+				: count.reviewRelearnCount();
 		long dueCount = count == null
 				? cardStateRepository.countDueByDeckForUser(deck.getId(), deck.getUser().getId(), today)
 				: count.dueCount();
-		return new DeckDtos.DeckResponse(deck.getId(), deck.getName(), newCount, relearnCount, dueCount,
-				deck.getCreatedAt());
+		return new DeckDtos.DeckResponse(deck.getId(), deck.getName(), newCount, relearnCount, learnRelearnCount,
+				reviewRelearnCount, dueCount, deck.getCreatedAt());
 	}
 
 	private String cleanName(String name) {
@@ -161,9 +170,10 @@ public class DeckService {
 				.orElseThrow(() -> BusinessException.unauthorized("unauthenticated", "登录状态已失效"));
 	}
 
-	private record DeckCount(long newCount, long relearnCount, long dueCount) {
+	private record DeckCount(long newCount, long relearnCount, long learnRelearnCount, long reviewRelearnCount,
+			long dueCount) {
 		private static DeckCount empty() {
-			return new DeckCount(0, 0, 0);
+			return new DeckCount(0, 0, 0, 0, 0);
 		}
 	}
 }

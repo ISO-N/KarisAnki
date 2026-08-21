@@ -106,7 +106,7 @@ public class AnswerService {
 		applyToEntity(state, result.state());
 		cardStateRepository.saveAndFlush(state);
 		AnswerEvent event = answerEventRepository.saveAndFlush(new AnswerEvent(user, card.getDeck(), card, now, timezone,
-				learningDay, result.scene(), result.stageBefore(), result.stageAfter(), request.result()));
+				learningDay, request.queueType(), result.scene(), result.stageBefore(), result.stageAfter(), request.result()));
 
 		StudyQueue queueType = request.queueType();
 		QueueService.QueueSnapshot snapshot = queueService.sessionQueue(userId, card.getDeck().getId(), queueType,
@@ -212,8 +212,8 @@ public class AnswerService {
 			applyToEntity(state, result.state());
 			cardStateRepository.saveAndFlush(state);
 			AnswerEvent event = answerEventRepository.saveAndFlush(new AnswerEvent(user, card.getDeck(), card, batchNow,
-					request.timezone(), learningDay, result.scene(), result.stageBefore(), result.stageAfter(),
-					item.result()));
+					request.timezone(), learningDay, request.queueType(), result.scene(), result.stageBefore(),
+					result.stageAfter(), item.result()));
 
 			QueueSimulationService.AdvanceResult advance = queueSimulationService.advance(queue, card, scheduleState,
 					result.state());

@@ -16,6 +16,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import top.kariscode.karisanki.domain.AnswerResult;
+import top.kariscode.karisanki.domain.StudyQueue;
 import top.kariscode.karisanki.domain.StudyScene;
 import top.kariscode.karisanki.domain.user.User;
 
@@ -53,6 +54,10 @@ public class AnswerEvent {
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
+	private StudyQueue queueType;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 20)
 	private StudyScene scene;
 
 	@Column(name = "stage_before", nullable = false)
@@ -69,7 +74,7 @@ public class AnswerEvent {
 	}
 
 	public AnswerEvent(User user, Deck deck, Card card, Instant answeredAt, String timezone, LocalDate learningDay,
-			StudyScene scene, int stageBefore, int stageAfter, AnswerResult result) {
+			StudyQueue queueType, StudyScene scene, int stageBefore, int stageAfter, AnswerResult result) {
 		this.user = user;
 		this.deck = deck;
 		this.deckName = deck.getName();
@@ -77,6 +82,7 @@ public class AnswerEvent {
 		this.answeredAt = answeredAt;
 		this.timezone = timezone;
 		this.learningDay = learningDay;
+		this.queueType = queueType;
 		this.scene = scene;
 		this.stageBefore = stageBefore;
 		this.stageAfter = stageAfter;
@@ -113,6 +119,10 @@ public class AnswerEvent {
 
 	public LocalDate getLearningDay() {
 		return learningDay;
+	}
+
+	public StudyQueue getQueueType() {
+		return queueType;
 	}
 
 	public StudyScene getScene() {
