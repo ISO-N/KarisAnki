@@ -10,7 +10,12 @@ permissions:
   packages: write
 
 jobs:
+  quality:
+    uses: ./.github/workflows/quality.yml
+    secrets: inherit
+
   publish:
+    needs: quality
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -49,39 +54,6 @@ jobs:
       - name: Prune old GHCR versions
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          owner="${GITHUB_REPOSITORY_OWNER,,}"
-          package_url=""
-
-          owner_type="$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.owner.type')"
-          if [[ "${owner_type}" == "Organization" ]]; then
-            package_url="orgs/${owner}/packages/container/karisanki"
-          else
-            package_url="users/${owner}/packages/container/karisanki"
-          fi
-
-          versions=""
-          if ! versions="$(gh api "${package_url}/versions?per_page=100" --paginate --jq '[.[] | {id, created_at, tags: (.metadata.container.tags // [])}] | sort_by(.created_at) | reverse' 2>ghcr-error.log)"; then
-            if grep -Eq '"Not Found"|Not Found' ghcr-error.log; then
-              echo "GHCR package does not exist yet; nothing to prune."
-              exit 0
-            fi
-            cat ghcr-error.log >&2
-            exit 1
-          fi
-
-          keep=2
-          echo "${versions}" | jq -r 'to_entries[] | [(.key + 1 | tostring), .value.id, .value.created_at, (.value.tags | join(","))] | @tsv' |
-          while IFS=$'\t' read -r idx id created tags; do
-            if [[ ",${tags}," == *,latest,* ]]; then
-              echo "keep[latest] id=${id} tags=[${tags}]"
-              continue
-            fi
-            if (( idx <= keep )); then
-              echo "keep[recent #${idx}] id=${id} tags=[${tags}]"
-              continue
-            fi
-            echo "delete id=${id} tags=[${tags}]"
-            gh api -X DELETE "${package_url}/versions/${id}"
-          done
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          KEEP_VERSIONS: "2"
+        run: bash scripts/prune-ghcr.sh
