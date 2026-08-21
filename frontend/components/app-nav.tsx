@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Layers, Settings } from "lucide-react";
+import { BarChart3, Home, Layers, Settings } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 export function AppNav() {
   const { user } = useAuth();
@@ -13,9 +15,12 @@ export function AppNav() {
 
   if (!user) {
     return (
-      <header className="border-b border-line bg-panel/80 backdrop-blur">
+      <header className="border-b bg-panel/80 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="text-base font-black tracking-wide">
+          <Link href="/" className="flex h-11 items-center gap-2 rounded-lg px-2 text-base font-semibold">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              K
+            </span>
             KarisAnki
           </Link>
         </div>
@@ -24,36 +29,43 @@ export function AppNav() {
   }
 
   const links = [
+    { href: "/", label: t("dashboard"), icon: Home, exact: true },
     { href: "/decks", label: t("decks"), icon: Layers },
     { href: "/statistics", label: t("statistics"), icon: BarChart3 },
     { href: "/settings", label: t("settings"), icon: Settings },
   ];
 
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-panel/85 backdrop-blur">
+    <header className="sticky top-0 z-30 border-b bg-panel/85 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-        <Link href="/decks" className="flex items-center gap-2 text-base font-black tracking-wide">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-white">
+        <Link
+          href="/"
+          aria-current={pathname === "/" ? "page" : undefined}
+          className="flex h-11 items-center gap-2 rounded-lg px-2 text-base font-semibold"
+        >
+          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             K
           </span>
-          KarisAnki
+          <span className="hidden sm:inline">KarisAnki</span>
+          <span className="sr-only sm:hidden">{t("dashboard")}</span>
         </Link>
-        <nav className="flex items-center gap-1 sm:gap-2">
+        <nav className="flex items-center gap-1 sm:gap-2" aria-label={t("dashboard")}>
           {links.map((link) => {
-            const active = pathname.startsWith(link.href);
             const Icon = link.icon;
+            const active = link.exact ? pathname === link.href : pathname.startsWith(link.href);
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${
-                  active
-                    ? "bg-accent-soft text-accent"
-                    : "text-muted hover:bg-panel-strong hover:text-foreground"
-                }`}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  buttonVariants({ variant: "ghost" }),
+                  "h-11 min-w-11 gap-2 px-2 sm:px-3",
+                  active ? "bg-primary-soft text-primary" : "text-muted-foreground",
+                )}
               >
-                <Icon size={17} />
-                <span className="hidden sm:inline">{link.label}</span>
+                <Icon aria-hidden="true" />
+                <span className="sr-only sm:not-sr-only">{link.label}</span>
               </Link>
             );
           })}

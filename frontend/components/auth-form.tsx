@@ -4,7 +4,13 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, apiErrorMessage } from "@/lib/api";
-import { KeyRound, LogIn, Mail, ShieldCheck, UserPlus } from "lucide-react";
+import { AlertCircle, LoaderCircle, LogIn, ShieldCheck, UserPlus } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
 import type { RegistrationStatus } from "@/lib/types";
@@ -19,6 +25,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [inviteCode, setInviteCode] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string; inviteCode?: string }>({});
   const [busy, setBusy] = useState(false);
   const [registration, setRegistration] = useState<RegistrationStatus | null>(null);
 
@@ -30,9 +37,25 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     }
   }, [isRegister]);
 
+  const validate = () => {
+    const next: { email?: string; password?: string; inviteCode?: string } = {};
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      next.email = t("error");
+    }
+    if (password.length < 8) {
+      next.password = t("error");
+    }
+    if (isRegister && !inviteCode.trim()) {
+      next.inviteCode = t("error");
+    }
+    setFieldErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
+    if (!validate()) return;
     setBusy(true);
     try {
       if (isRegister) {
@@ -40,7 +63,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       } else {
         await login(email, password, rememberMe);
       }
-      router.push("/decks");
+      router.push("/");
       router.refresh();
     } catch (err) {
       setError(apiErrorMessage(err, language, t("error")));
@@ -50,93 +73,120 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-xl font-black text-white">
-            K
-          </div>
-          <div>
-            <h1 className="text-xl font-black tracking-tight">KarisAnki</h1>
-            <p className="text-sm text-muted">{isRegister ? t("registerTitle") : t("loginTitle")}</p>
-          </div>
+    <div className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-[420px] flex-col justify-center py-8">
+      <div className="mb-6 flex items-center gap-3">
+        <span className="flex size-11 items-center justify-center rounded-lg bg-primary text-xl font-semibold text-primary-foreground">
+          K
+        </span>
+        <div>
+          <h1 className="text-xl font-semibold">KarisAnki</h1>
+          <p className="text-sm text-muted-foreground">
+            {isRegister ? t("registerTitle") : t("loginTitle")}
+          </p>
         </div>
-
-        {isRegister && registration && !registration.enabled && (
-          <div className="mb-4 rounded-lg border border-warning/40 bg-warning-soft p-4 text-sm font-medium text-warning">
-            {t("registrationUnavailable")}
-          </div>
-        )}
-
-        <form onSubmit={submit} className="card space-y-4 p-6">
-          <label className="block">
-            <span className="mb-1.5 flex items-center gap-2 text-sm font-semibold">
-              <Mail size={15} /> {t("email")}
-            </span>
-            <input
-              className="input"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-1.5 flex items-center gap-2 text-sm font-semibold">
-              <KeyRound size={15} /> {t("password")}
-            </span>
-            <input
-              className="input"
-              type="password"
-              autoComplete={isRegister ? "new-password" : "current-password"}
-              minLength={8}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-          </label>
-
-          {isRegister && (
-            <label className="block">
-              <span className="mb-1.5 flex items-center gap-2 text-sm font-semibold">
-                <ShieldCheck size={15} /> {t("inviteCode")}
-              </span>
-              <input
-                className="input"
-                value={inviteCode}
-                onChange={(event) => setInviteCode(event.target.value)}
-                required
-              />
-            </label>
-          )}
-
-          <label className="flex items-center gap-2 text-sm font-medium">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(event) => setRememberMe(event.target.checked)}
-              className="h-4 w-4 accent-accent"
-            />
-            {t("rememberMe")}
-          </label>
-
-          {error && <div className="rounded-lg bg-danger-soft p-3 text-sm font-medium text-danger">{error}</div>}
-
-          <button className="btn btn-primary w-full" type="submit" disabled={busy || (isRegister && !registration?.enabled)}>
-            {isRegister ? <UserPlus size={17} /> : <LogIn size={17} />}
-            {isRegister ? t("register") : t("login")}
-          </button>
-        </form>
-
-        <p className="mt-4 text-center text-sm text-muted">
-          {isRegister ? t("haveAccount") : t("noAccount")}{" "}
-          <Link className="font-semibold text-accent" href={isRegister ? "/login" : "/register"}>
-            {isRegister ? t("toLogin") : t("toRegister")}
-          </Link>
-        </p>
       </div>
+
+      {isRegister && registration && !registration.enabled ? (
+        <Alert className="mb-4" role="alert">
+          <AlertCircle />
+          <AlertTitle>{t("registrationUnavailable")}</AlertTitle>
+          <AlertDescription>{t("registrationUnavailable")}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <Card>
+        <CardContent>
+          <form onSubmit={submit} noValidate>
+            <FieldGroup>
+              <Field data-invalid={!!fieldErrors.email}>
+                <FieldLabel htmlFor="email">{t("email")}</FieldLabel>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  aria-invalid={!!fieldErrors.email}
+                  required
+                />
+                {fieldErrors.email ? <FieldError>{fieldErrors.email}</FieldError> : null}
+              </Field>
+
+              <Field data-invalid={!!fieldErrors.password}>
+                <FieldLabel htmlFor="password">{t("password")}</FieldLabel>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete={isRegister ? "new-password" : "current-password"}
+                  minLength={8}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  aria-invalid={!!fieldErrors.password}
+                  required
+                />
+                {fieldErrors.password ? <FieldError>{fieldErrors.password}</FieldError> : null}
+              </Field>
+
+              {isRegister ? (
+                <Field data-invalid={!!fieldErrors.inviteCode}>
+                  <FieldLabel htmlFor="inviteCode">
+                    <ShieldCheck />
+                    {t("inviteCode")}
+                  </FieldLabel>
+                  <Input
+                    id="inviteCode"
+                    value={inviteCode}
+                    onChange={(event) => setInviteCode(event.target.value)}
+                    aria-invalid={!!fieldErrors.inviteCode}
+                    required
+                  />
+                  {fieldErrors.inviteCode ? <FieldError>{fieldErrors.inviteCode}</FieldError> : null}
+                </Field>
+              ) : null}
+
+              <Field orientation="horizontal">
+                <Switch
+                  id="rememberMe"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked)}
+                />
+                <FieldLabel htmlFor="rememberMe">{t("rememberMe")}</FieldLabel>
+              </Field>
+
+              {error ? (
+                <Alert variant="destructive" role="alert">
+                  <AlertCircle />
+                  <AlertTitle>{t("error")}</AlertTitle>
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : null}
+
+              <Button
+                className="h-11 w-full"
+                size="lg"
+                type="submit"
+                disabled={busy || (isRegister && !registration?.enabled)}
+              >
+                {busy ? (
+                  <LoaderCircle data-icon="inline-start" className="animate-spin" />
+                ) : isRegister ? (
+                  <UserPlus data-icon="inline-start" />
+                ) : (
+                  <LogIn data-icon="inline-start" />
+                )}
+                {isRegister ? t("register") : t("login")}
+              </Button>
+            </FieldGroup>
+          </form>
+        </CardContent>
+      </Card>
+
+      <p className="mt-4 text-center text-sm text-muted-foreground">
+        {isRegister ? t("haveAccount") : t("noAccount")}{" "}
+        <Link className="font-semibold text-primary" href={isRegister ? "/login" : "/register"}>
+          {isRegister ? t("toLogin") : t("toRegister")}
+        </Link>
+      </p>
     </div>
   );
 }
