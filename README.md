@@ -62,18 +62,29 @@
 - Docker + Compose v2（容器化运行 / 测试数据库）
 - PostgreSQL 17（容器化已包含，本地开发可用宿主机实例）
 
-### 方式一 — Docker 一键启动（推荐）
+### 方式一 — Docker 启动
+
+本地源码构建：
 
 ```bash
 cp .env.example .env
 # 编辑 .env：务必修改 DB_PASSWORD、KARISANKI_INVITE_CODES，
 # 公网 HTTPS 需设 COOKIE_SECURE=true
-docker compose up -d --build
+docker compose -f docker-compose.local.yml up -d --build
 
 # 验证
 curl -I http://localhost:3000
 curl http://localhost:3000/api/auth/registration-status
 # 已配置邀请码时应返回 {"enabled":true,"inviteRequired":true}
+```
+
+服务器拉取 GHCR 镜像：
+
+```bash
+cp .env.example .env
+# 编辑 .env 后
+docker compose pull
+docker compose up -d
 ```
 
 启动后访问 `http://localhost:3000`（或 `.env` 中 `PORT` 指定的端口）。
@@ -121,7 +132,8 @@ npm run dev                     # http://localhost:3000
 ├── Dockerfile               # 单镜像构建（后端 jar + 前端 standalone）
 ├── docker/entrypoint.sh     # 单容器内同时启动后端与前端
 ├── .github/workflows/       # GitHub Actions（master push 发布 GHCR）
-├── docker-compose.yml       # 生产编排（postgres + app 单镜像）
+├── docker-compose.yml       # 服务器部署（拉取 GHCR 单镜像）
+├── docker-compose.local.yml  # 本地源码构建单镜像
 └── docker-compose.test.yml  # 测试专用 PG（宿主机 5433 → karisanki_test）
 ```
 
@@ -142,6 +154,7 @@ npm run dev                     # http://localhost:3000
 | `COOKIE_SECURE` | `false` | HTTPS 时设 `true` |
 | `BACKEND_URL` | `http://127.0.0.1:8080` | 前端构建期后端地址（单容器内同机访问） |
 | `PORT` | `3000` | 前端宿主机端口 |
+| `APP_IMAGE` | `ghcr.io/iso-n/karisanki:latest` | 服务器部署拉取的 GHCR 镜像；fork 或私有镜像时覆盖 |
 
 > `BACKEND_URL` 为构建期参数（根目录 `Dockerfile` 的 `ARG BACKEND_URL`），生产镜像必须在 `npm run build` 前传入正确值，否则 rewrite 目标错误。见 [`docs/proxy.md`](docs/proxy.md)。
 
@@ -197,13 +210,23 @@ npm run build
 ```
 
 ---
-
 ## 📦 部署
+
+本地源码构建：
 
 ```bash
 cp .env.example .env
 # 编辑 .env 后
-docker compose up -d --build
+docker compose -f docker-compose.local.yml up -d --build
+```
+
+服务器拉取 GHCR 镜像：
+
+```bash
+cp .env.example .env
+# 编辑 .env 后
+docker compose pull
+docker compose up -d
 ```
 
 - 前端为唯一公网入口，建议在其前配置 TLS 终止（如 nginx 反向代理），示例见 [`docs/proxy.md`](docs/proxy.md)。

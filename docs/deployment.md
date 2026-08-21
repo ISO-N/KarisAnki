@@ -10,11 +10,25 @@ KarisAnki 使用 PostgreSQL 和 `app` 单容器部署。`app` 镜像同时包含
 
 ## 启动
 
+本地源码构建：
+
 ```bash
 cp .env.example .env
 # 编辑 .env，设置 DB_PASSWORD、KARISANKI_INVITE_CODES 和 COOKIE_SECURE=true。
-docker compose up -d --build
+docker compose -f docker-compose.local.yml up -d --build
 ```
+
+服务器拉取 GHCR 镜像：
+
+```bash
+cp .env.example .env
+# 编辑 .env，设置 DB_PASSWORD、KARISANKI_INVITE_CODES 和 COOKIE_SECURE=true。
+# 如果 GHCR 包是私有的，先执行 docker login ghcr.io。
+docker compose pull
+docker compose up -d
+```
+
+`docker-compose.yml` 的 `app` 使用 `pull_policy: always`，每次 `docker compose up -d` 都会重新拉取最新镜像；`docker-compose.local.yml` 用于从当前源码构建。
 
 启动后，前端可通过 `http://localhost:3000`（或你设置的 `PORT`）访问。注册时可以使用 `KARISANKI_INVITE_CODES` 中列出的任意一个邀请码。
 
