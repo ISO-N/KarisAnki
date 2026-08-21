@@ -29,7 +29,18 @@ cd backend
 ./mvnw test
 ```
 
-启动时 Flyway 会把 `V1` 和 `V2` 迁移应用到测试数据库。`spring.jpa.hibernate.ddl-auto=validate` 会校验 JPA 实体与已迁移 schema 是否一致。
+启动时 Flyway 会把 `V1`、`V2` 和 `V3` 迁移应用到测试数据库。`spring.jpa.hibernate.ddl-auto=validate` 会校验 JPA 实体与已迁移 schema 是否一致。
+
+后端集成测试覆盖会话快照、幂等答题重放、重复 `AnswerEvent` 防护和 `previousClientAnswerId` 离线链。
+
+## 前端单元测试
+
+```bash
+cd frontend
+npm test
+```
+
+离线队列插入规则和 outbox 排序使用 Vitest 测试。
 
 ## 配置
 
