@@ -10,6 +10,8 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
+export const IMPORT_MAX_SOURCE_BYTES = 2 * 1024 * 1024;
+export const IMPORT_MAX_CARDS = 5000;
 
 const apiMessages: Record<UiLanguage, Record<string, string>> = {
   ZH: {
@@ -33,6 +35,10 @@ const apiMessages: Record<UiLanguage, Record<string, string>> = {
     user_not_found: "用户不存在",
     unauthenticated: "登录状态已失效",
     internal_error: "服务器内部错误",
+    invalid_import_json: "导入内容不是有效的 JSON 数组",
+    import_source_too_large: "导入内容超过大小限制",
+    too_many_import_cards: "单次导入卡片数量过多",
+    back_invalid: "卡片背面格式不正确",
   },
   EN: {
     invalid_invite_code: "Invalid invite code.",
@@ -56,6 +62,10 @@ const apiMessages: Record<UiLanguage, Record<string, string>> = {
     user_not_found: "User not found.",
     unauthenticated: "Your session has expired.",
     internal_error: "Internal server error.",
+    invalid_import_json: "The source is not a valid JSON array.",
+    import_source_too_large: "The import source exceeds the size limit.",
+    too_many_import_cards: "The import contains too many cards.",
+    back_invalid: "The card back has an invalid format.",
   },
 };
 

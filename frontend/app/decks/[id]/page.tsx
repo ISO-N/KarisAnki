@@ -14,9 +14,10 @@ import {
   RotateCcw,
   Search,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { api, apiErrorMessage, clientTimezone } from "@/lib/api";
-import { Alert, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent } from "@/components/ui/card";
@@ -25,6 +26,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/in
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardEditor } from "@/components/card-editor";
+import { ImportCards } from "@/components/import-cards";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { MarkdownContent } from "@/components/markdown-content";
@@ -32,7 +34,7 @@ import { PageHeader } from "@/components/page-header";
 import { RequireAuth } from "@/components/require-auth";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import type { Card as StudyCard, CardList, Deck } from "@/lib/types";
+import type { Card as StudyCard, CardList, Deck, ImportResult } from "@/lib/types";
 
 type CardPendingAction =
   | { type: "delete"; card: StudyCard }
@@ -55,7 +57,8 @@ export default function DeckDetailPage() {
   const [message, setMessage] = useState("");
   const [pendingCardAction, setPendingCardAction] = useState<CardPendingAction>(null);
   const [pendingBusy, setPendingBusy] = useState(false);
-
+  const [importOpen, setImportOpen] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const statusQuery = status === "all" ? "" : status;
 
   const load = useCallback(async (requestedPage = 0, requestedQuery = "", requestedStatus = "") => {
@@ -96,6 +99,12 @@ export default function DeckDetailPage() {
   const goToPage = (next: number) => {
     setPage(next);
     void load(next, query, statusQuery);
+  };
+
+  const handleImported = async (result: ImportResult) => {
+    setImportResult(result);
+    setImportOpen(false);
+    await load(page, query, statusQuery);
   };
 
   const runPendingCardAction = async () => {
@@ -141,6 +150,10 @@ export default function DeckDetailPage() {
                 <Plus data-icon="inline-start" />
                 {t("createCard")}
               </Button>
+              <Button onClick={() => { setImportResult(null); setImportOpen(true); }}>
+                <Upload data-icon="inline-start" />
+                {t("importCards")}
+              </Button>
             </>
           }
         />
@@ -153,6 +166,15 @@ export default function DeckDetailPage() {
         {message ? (
           <Alert role="status">
             <AlertTitle>{message}</AlertTitle>
+          </Alert>
+        ) : null}
+
+        {importResult ? (
+          <Alert role="status">
+            <AlertTitle>{t("importCompleted")}</AlertTitle>
+            <AlertDescription>
+              {t("importCreated")} {importResult.created} / {t("importSkipped")} {importResult.skippedDuplicates}
+            </AlertDescription>
           </Alert>
         ) : null}
 
@@ -174,6 +196,10 @@ export default function DeckDetailPage() {
               setEditing(null);
             }}
           />
+        ) : null}
+
+        {importOpen ? (
+          <ImportCards deckId={deckId} open onOpenChange={setImportOpen} onImported={handleImported} />
         ) : null}
 
         <Card className="p-4">
