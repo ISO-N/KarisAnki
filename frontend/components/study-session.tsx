@@ -1,13 +1,22 @@
 "use client";
-/* eslint-disable react-hooks/set-state-in-effect, react-hooks/immutability -- queue loading and skipped-card recursion are external data syncs */
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import { CheckCircle2, Eye, LoaderCircle, RotateCcw } from "lucide-react";
-import { api, ApiError, apiErrorMessage, clientTimezone } from "@/lib/api";
+import {
+  CheckCircle2,
+  CircleAlert,
+  Cloud,
+  CloudUpload,
+  Eye,
+  History,
+  LoaderCircle,
+  RotateCcw,
+  WifiOff,
+} from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
 import { useI18n } from "@/lib/i18n";
+import { useOfflineSession, type SyncStatus } from "@/lib/offline/session-sync";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,138 +26,84 @@ import { RatingBar } from "@/components/rating-bar";
 import { ReviewCard } from "@/components/review-card";
 import { SessionHeader } from "@/components/session-header";
 import { cn } from "@/lib/utils";
-import type { AnswerResponse, AnswerResult, Card as StudyCard, Queue } from "@/lib/types";
+import type { AnswerResult } from "@/lib/types";
 
-type Phase =
-  | "loading"
-  | "front"
-  | "answer"
-  | "submitting"
-  | "leaving"
-  | "entering"
-  | "graduate"
-  | "confirmForget"
-  | "done"
-  | "error";
+function SyncStatusBar({
+  status,
+  pendingCount,
+  online,
+}: {
+  status: SyncStatus;
+  pendingCount: number;
+  online: boolean;
+}) {
+  const { t } = useI18n();
+  const Icon =
+    status === "offline"
+      ? WifiOff
+      : status === "syncing"
+        ? LoaderCircle
+        : status === "conflict"
+          ? CircleAlert
+          : status === "pending"
+            ? CloudUpload
+            : Cloud;
 
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  const label =
+    status === "offline"
+      ? t("offline")
+      : status === "pending"
+        ? t("pendingSync")
+        : status === "syncing"
+          ? t("syncing")
+          : status === "synced"
+            ? t("synced")
+            : status === "conflict"
+              ? t("conflict")
+              : online
+                ? t("synced")
+                : t("offline");
+
+  return (
+    <div className="mb-3 flex min-h-9 flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm text-muted-foreground">
+      <span className="inline-flex items-center gap-2" aria-live="polite">
+        <Icon className={cn("size-4", status === "syncing" && "animate-spin")} aria-hidden="true" />
+        {label}
+      </span>
+      {pendingCount > 0 ? (
+        <span className="font-mono text-xs tabular-nums">
+          {t("pendingSyncCount")} {pendingCount}
+        </span>
+      ) : null}
+    </div>
+  );
 }
 
 export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" | "REVIEW" }) {
-  const { t, language } = useI18n();
-  const [phase, setPhase] = useState<Phase>("loading");
-  const [card, setCard] = useState<StudyCard | null>(null);
+  const { t } = useI18n();
+  const {
+    session,
+    phase,
+    card,
+    error,
+    syncStatus,
+    pendingCount,
+    online,
+    resume,
+    refresh,
+    discardLocalAndRefresh,
+    continueAfterConflict,
+    submit,
+    setPhase,
+  } = useOfflineSession(deckId, type);
   const [selected, setSelected] = useState<AnswerResult | null>(null);
-  const [error, setError] = useState("");
-  const [total, setTotal] = useState(0);
-  const [completedCount, setCompletedCount] = useState(0);
-
-  const loadCard = useCallback(async (cardId: number, candidates: number[] = [], transition = false) => {
-    try {
-      const next = await api<StudyCard>(`/api/cards/${cardId}`);
-      setCard(next);
-      if (transition) {
-        setPhase("entering");
-        await wait(160);
-      }
-      setPhase("front");
-      return true;
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
-        if (candidates.length > 1) {
-          const nextCandidates = candidates.slice(1);
-          return loadCard(nextCandidates[0], nextCandidates, false);
-        }
-        setCard(null);
-        setPhase("done");
-        return false;
-      }
-      throw err;
-    }
-  }, []);
-
-  const loadQueue = useCallback(async () => {
-    setPhase("loading");
-    setError("");
-    try {
-      const data = await api<Queue>(
-        `/api/decks/${deckId}/queue?type=${type}&timezone=${encodeURIComponent(clientTimezone())}`,
-      );
-      setTotal(data.cardIds.length);
-      setCompletedCount(0);
-      setSelected(null);
-      if (data.cardIds.length === 0) {
-        setCard(null);
-        setPhase("done");
-        return;
-      }
-      await loadCard(data.cardIds[0], data.cardIds, true);
-    } catch (err) {
-      setError(apiErrorMessage(err, language, t("error")));
-      setPhase("error");
-    }
-  }, [deckId, type, loadCard, language, t]);
 
   useEffect(() => {
-    loadQueue();
-  }, [loadQueue]);
-
-  const submit = useCallback(
-    async (result: AnswerResult, extra?: { graduate?: boolean; confirmForget?: boolean }) => {
-      if (!card || phase === "submitting" || phase === "leaving") return;
-      setSelected(result);
-      setPhase("submitting");
-      try {
-        const response = await api<AnswerResponse>("/api/answer", {
-          method: "POST",
-          body: JSON.stringify({
-            cardId: card.id,
-            result,
-            queueType: type,
-            timezone: clientTimezone(),
-            stateVersion: card.stateVersion,
-            graduate: extra?.graduate ?? false,
-            confirmForget: extra?.confirmForget ?? false,
-          }),
-        });
-        if (response.completed) setCompletedCount((count) => count + 1);
-        if (response.queue.length === 0) {
-          setCard(null);
-          setPhase("done");
-          return;
-        }
-        setPhase("leaving");
-        await wait(140);
-        await loadCard(response.queue[0], response.queue, true);
-        setSelected(null);
-      } catch (err) {
-        if (err instanceof ApiError && err.code === "confirmation_required") {
-          setPhase("confirmForget");
-          setSelected(null);
-          return;
-        }
-        if (err instanceof ApiError && (err.code === "queue_conflict" || err.code === "queue_refresh")) {
-          setError(apiErrorMessage(err, language, t("error")));
-          setPhase("error");
-          return;
-        }
-        if (err instanceof ApiError && err.status === 404) {
-          setError(apiErrorMessage(err, language, t("error")));
-          setPhase("error");
-          return;
-        }
-        if (err instanceof ApiError && err.status === 401) {
-          setError(t("sessionExpired"));
-          setPhase("error");
-          return;
-        }
-        setError(apiErrorMessage(err, language, t("error")));
-        setPhase("error");
-      }
-    },
-    [card, type, loadCard, language, phase, t],
-  );
+    if (phase === "leaving") {
+      const timeout = window.setTimeout(() => setPhase("front"), 140);
+      return () => window.clearTimeout(timeout);
+    }
+  }, [phase, setPhase]);
 
   const chooseResult = useCallback(
     (result: AnswerResult) => {
@@ -163,9 +118,10 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
         setPhase("confirmForget");
         return;
       }
+      setSelected(result);
       void submit(result);
     },
-    [card, phase, submit],
+    [card, phase, setPhase, submit],
   );
 
   useEffect(() => {
@@ -183,9 +139,11 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, chooseResult]);
+  }, [phase, chooseResult, setPhase]);
 
   const statusLabel = phase === "loading" ? t("queueLoading") : type === "LEARN" ? t("startLearn") : t("startReview");
+  const completed = session?.completedCount ?? 0;
+  const total = session?.total ?? 0;
 
   return (
     <RequireAuth>
@@ -194,22 +152,56 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
           backHref={`/decks/${deckId}`}
           backLabel={t("back")}
           progressLabel={t("progressLabel")}
-          completed={completedCount}
+          completed={completed}
           total={total}
           statusLabel={statusLabel}
         />
 
-        {phase === "loading" ? (
-          <Skeleton className="min-h-[52vh] flex-1" />
+        {(phase === "front" || phase === "answer" || phase === "submitting" || phase === "leaving" || phase === "graduate" || phase === "confirmForget" || phase === "resume" || phase === "conflict") ? (
+          <SyncStatusBar status={syncStatus} pendingCount={pendingCount} online={online} />
         ) : null}
+
+        {phase === "loading" ? <Skeleton className="min-h-[52vh] flex-1" /> : null}
 
         {phase === "error" ? (
           <ErrorState
             title={t("error")}
             description={error}
-            onRetry={loadQueue}
+            onRetry={refresh}
             retryLabel={t("retry")}
           />
+        ) : null}
+
+        {phase === "resume" ? (
+          <EmptyState
+            icon={<History />}
+            title={t("sessionResumeTitle")}
+            description={t("sessionResumeHint")}
+            className="my-auto"
+          >
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={resume} className="min-h-11">
+                {t("resumeSession")}
+              </Button>
+              <Button variant="outline" onClick={discardLocalAndRefresh} className="min-h-11">
+                <RotateCcw data-icon="inline-start" />
+                {t("refreshSession")}
+              </Button>
+            </div>
+          </EmptyState>
+        ) : null}
+
+        {phase === "conflict" ? (
+          <EmptyState
+            icon={<CircleAlert />}
+            title={t("sessionConflictTitle")}
+            description={t("sessionConflictHint")}
+            className="my-auto"
+          >
+            <Button onClick={continueAfterConflict} className="min-h-11">
+              {t("resumeSession")}
+            </Button>
+          </EmptyState>
         ) : null}
 
         {phase === "done" ? (
@@ -222,14 +214,14 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
             <Link href={`/decks/${deckId}`} className={cn(buttonVariants(), "min-h-11")}>
               {t("returnToDeck")}
             </Link>
-            <Button variant="outline" onClick={loadQueue} className="min-h-11">
+            <Button variant="outline" onClick={refresh} className="min-h-11">
               <RotateCcw data-icon="inline-start" />
               {t("startAgain")}
             </Button>
           </EmptyState>
         ) : null}
 
-        {card && phase !== "done" && phase !== "error" ? (
+        {card && phase !== "done" && phase !== "error" && phase !== "resume" && phase !== "conflict" ? (
           <>
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
@@ -271,7 +263,7 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
                 />
               ) : null}
 
-              {phase === "leaving" || phase === "entering" ? (
+              {phase === "leaving" ? (
                 <div className="flex min-h-14 items-center justify-center gap-2 text-sm text-muted-foreground" aria-live="polite">
                   <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
                   {t("submitting")}

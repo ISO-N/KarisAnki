@@ -11,6 +11,12 @@ import {
 import { api, ApiError } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
+import {
+  cacheSettings,
+  clearCachedUser,
+  readCachedUser,
+  writeCachedUser,
+} from "@/lib/user-cache";
 import type { Settings, User } from "@/lib/types";
 
 interface AuthContextValue {
@@ -42,47 +48,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(next);
       setLanguage(next.settings.language);
       setMode(next.settings.theme);
+      writeCachedUser(next);
     },
     [setLanguage, setMode],
   );
 
-  const refresh = async () => {
+  const clearUser = useCallback(() => {
+    setUser(null);
+    clearCachedUser();
+  }, []);
+
+  const refresh = useCallback(async () => {
     try {
       const next = await api<User>("/api/auth/me");
       applyUser(next);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
-        setUser(null);
+        clearUser();
       }
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    const handleUnauthorized = () => setUser(null);
-    window.addEventListener("karisanki:unauthorized", handleUnauthorized);
-    return () => window.removeEventListener("karisanki:unauthorized", handleUnauthorized);
-  }, []);
+  }, [applyUser, clearUser]);
 
   useEffect(() => {
     let cancelled = false;
+    const cached = readCachedUser();
+    if (cached) {
+      Promise.resolve().then(() => {
+        if (!cancelled) {
+          setUser(cached);
+          setLoading(false);
+        }
+      });
+    }
+
     api<User>("/api/auth/me")
       .then((next) => {
         if (!cancelled) applyUser(next);
       })
       .catch((error) => {
         if (!cancelled && error instanceof ApiError && error.status === 401) {
-          setUser(null);
+          clearUser();
         }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+
     return () => {
       cancelled = true;
     };
-  }, [applyUser]);
+  }, [applyUser, clearUser]);
+
+  useEffect(() => {
+    const handleUnauthorized = () => clearUser();
+    window.addEventListener("karisanki:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("karisanki:unauthorized", handleUnauthorized);
+  }, [clearUser]);
 
   const login = async (email: string, password: string, rememberMe: boolean) => {
     const next = await api<User>("/api/auth/login", {
@@ -110,18 +133,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logoutCurrent = async () => {
     await api<void>("/api/auth/logout", { method: "POST" });
-    setUser(null);
+    clearUser();
   };
 
   const logoutAll = async () => {
     await api<void>("/api/auth/logout-all", { method: "POST" });
-    setUser(null);
+    clearUser();
   };
 
   const updateSettings = async (settings: Settings) => {
     setUser((current) => (current ? { ...current, settings } : current));
     setLanguage(settings.language);
     setMode(settings.theme);
+    cacheSettings(settings);
   };
 
   return (
