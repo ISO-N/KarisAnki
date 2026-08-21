@@ -1,5 +1,4 @@
 "use client";
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, apiErrorMessage } from "@/lib/api";
 import {
@@ -18,6 +17,15 @@ export interface UseApiDataOptions<T> {
   auth?: "required" | "optional";
   scopeUserId?: number | "guest";
   onData?: (data: T) => void;
+}
+
+function requestPath(path: string, query?: Record<string, CacheQueryValue>) {
+  const url = new URL(path, "http://karisanki.local");
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value === null || value === undefined || value === "") continue;
+    url.searchParams.set(key, String(value));
+  }
+  return `${url.pathname}${url.search}`;
 }
 
 export interface UseApiDataResult<T> {
@@ -87,7 +95,7 @@ export function useApiData<T>(options: UseApiDataOptions<T>): UseApiDataResult<T
       }
 
       try {
-        const fresh = await api<T>(options.path, {
+        const fresh = await api<T>(requestPath(options.path, options.query), {
           retry: { maxRetries: 1, backoffMs: 300 },
         });
         if (cancelled) return;
@@ -129,7 +137,7 @@ export function useApiData<T>(options: UseApiDataOptions<T>): UseApiDataResult<T
     void (async () => {
       if (!cacheKey || userId === null) return;
       try {
-        const fresh = await api<T>(options.path, {
+        const fresh = await api<T>(requestPath(options.path, options.query), {
           retry: { maxRetries: 1, backoffMs: 300 },
         });
         dataRef.current = fresh;
