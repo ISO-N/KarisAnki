@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 
 import org.junit.jupiter.api.Test;
 
@@ -44,7 +45,7 @@ class TimeServiceTest {
 	@Test
 	void invalidTimezoneFallsBackToSystemZoneWithoutThrowing() {
 		Instant now = Instant.parse("2026-08-21T12:00:00Z");
-		assertEquals(LocalDate.now(java.time.ZoneId.systemDefault()),
+		assertEquals(timeService.learningDay(LocalTime.of(4, 0), ZoneId.systemDefault().getId(), now),
 				timeService.learningDay(LocalTime.of(4, 0), "not-a-timezone", now));
 	}
 }

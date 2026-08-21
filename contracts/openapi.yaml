@@ -1,0 +1,1032 @@
+openapi: 3.0.3
+info:
+  title: KarisAnki API
+  version: 1.0.0
+  description: Shared frontend/backend contract for KarisAnki.
+servers:
+  - url: /api
+security:
+  - cookieAuth: []
+paths:
+  /auth/registration-status:
+    get:
+      operationId: registrationStatus
+      responses:
+        '200':
+          description: Registration availability
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationStatus'
+  /auth/register:
+    post:
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /auth/login:
+    post:
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+  /auth/me:
+    get:
+      operationId: me
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Error'
+  /auth/logout:
+    post:
+      operationId: logout
+      responses:
+        '204':
+          description: Logged out
+  /auth/logout-all:
+    post:
+      operationId: logoutAll
+      responses:
+        '204':
+          description: All sessions logged out
+  /bootstrap:
+    get:
+      operationId: bootstrap
+      parameters:
+        - $ref: '#/components/parameters/Timezone'
+      responses:
+        '200':
+          description: User and deck list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bootstrap'
+  /decks:
+    get:
+      operationId: listDecks
+      parameters:
+        - $ref: '#/components/parameters/Timezone'
+      responses:
+        '200':
+          description: Deck list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Deck'
+    post:
+      operationId: createDeck
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDeckRequest'
+      responses:
+        '201':
+          description: Created deck
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deck'
+        '400':
+          $ref: '#/components/responses/Error'
+  /decks/{deckId}:
+    parameters:
+      - $ref: '#/components/parameters/DeckId'
+    get:
+      operationId: deckOverview
+      parameters:
+        - $ref: '#/components/parameters/Timezone'
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/Status'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Deck overview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeckOverview'
+        '404':
+          $ref: '#/components/responses/Error'
+    patch:
+      operationId: renameDeck
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameDeckRequest'
+      responses:
+        '200':
+          description: Renamed deck
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deck'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteDeck
+      responses:
+        '204':
+          description: Deleted
+  /decks/{deckId}/reset:
+    parameters:
+      - $ref: '#/components/parameters/DeckId'
+    post:
+      operationId: resetDeck
+      parameters:
+        - $ref: '#/components/parameters/Timezone'
+      responses:
+        '204':
+          description: Reset
+  /decks/{deckId}/cards:
+    parameters:
+      - $ref: '#/components/parameters/DeckId'
+    get:
+      operationId: listCards
+      parameters:
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/Status'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Card list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardList'
+    post:
+      operationId: createCard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCardRequest'
+      responses:
+        '201':
+          description: Created card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Card'
+        '400':
+          $ref: '#/components/responses/Error'
+  /decks/{deckId}/cards/parse:
+    parameters:
+      - $ref: '#/components/parameters/DeckId'
+    post:
+      operationId: parseCards
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParseCardRequest'
+      responses:
+        '200':
+          description: Import preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportPreview'
+        '400':
+          $ref: '#/components/responses/Error'
+  /decks/{deckId}/cards/import:
+    parameters:
+      - $ref: '#/components/parameters/DeckId'
+    post:
+      operationId: importCards
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportCardsRequest'
+      responses:
+        '200':
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /cards/{cardId}:
+    parameters:
+      - $ref: '#/components/parameters/CardId'
+    get:
+      operationId: getCard
+      responses:
+        '200':
+          description: Card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Card'
+        '404':
+          $ref: '#/components/responses/Error'
+    put:
+      operationId: updateCard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCardRequest'
+      responses:
+        '200':
+          description: Updated card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Card'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteCard
+      responses:
+        '204':
+          description: Deleted
+  /cards/{cardId}/reset:
+    parameters:
+      - $ref: '#/components/parameters/CardId'
+    post:
+      operationId: resetCard
+      responses:
+        '204':
+          description: Reset
+  /decks/{deckId}/queue:
+    parameters:
+      - $ref: '#/components/parameters/DeckId'
+    get:
+      operationId: queue
+      parameters:
+        - $ref: '#/components/parameters/QueueType'
+        - $ref: '#/components/parameters/Timezone'
+      responses:
+        '200':
+          description: Queue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Queue'
+        '400':
+          $ref: '#/components/responses/Error'
+  /decks/{deckId}/session:
+    parameters:
+      - $ref: '#/components/parameters/DeckId'
+    get:
+      operationId: session
+      parameters:
+        - $ref: '#/components/parameters/QueueType'
+        - $ref: '#/components/parameters/Timezone'
+      responses:
+        '200':
+          description: Session snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/Error'
+  /answer:
+    post:
+      operationId: answer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnswerRequest'
+      responses:
+        '200':
+          description: Answer result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerResponse'
+        '409':
+          $ref: '#/components/responses/Error'
+  /answer/batch:
+    post:
+      operationId: answerBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnswerBatchRequest'
+      responses:
+        '200':
+          description: Batch answer results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerBatchResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+  /statistics:
+    get:
+      operationId: statistics
+      parameters:
+        - $ref: '#/components/parameters/Timezone'
+        - name: deckId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Statistics'
+  /settings:
+    get:
+      operationId: getSettings
+      responses:
+        '200':
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+    put:
+      operationId: updateSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettingsRequest'
+      responses:
+        '200':
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '400':
+          $ref: '#/components/responses/Error'
+  /settings/password:
+    put:
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '204':
+          description: Password changed
+        '400':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /health:
+    get:
+      operationId: health
+      responses:
+        '200':
+          description: Health
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: KARISANKI_SESSION
+  parameters:
+    DeckId:
+      name: deckId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    CardId:
+      name: cardId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    Timezone:
+      name: timezone
+      in: query
+      required: false
+      schema:
+        type: string
+    QueueType:
+      name: type
+      in: query
+      required: true
+      schema:
+        type: string
+        enum: [LEARN, REVIEW]
+    Query:
+      name: q
+      in: query
+      required: false
+      schema:
+        type: string
+    Status:
+      name: status
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [new, review, relearn, graduated]
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+  responses:
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable error code.
+          examples:
+            - validation_error
+            - queue_refresh
+            - confirmation_required
+            - rate_limited
+        message:
+          type: string
+    RegistrationStatus:
+      type: object
+      required: [enabled, inviteRequired]
+      properties:
+        enabled:
+          type: boolean
+        inviteRequired:
+          type: boolean
+    Settings:
+      type: object
+      required: [userId, refreshTime, language, theme]
+      properties:
+        userId:
+          type: integer
+          format: int64
+        refreshTime:
+          type: string
+          example: '04:00:00'
+        language:
+          type: string
+          enum: [ZH, EN]
+        theme:
+          type: string
+          enum: [SYSTEM, LIGHT, DARK]
+    User:
+      type: object
+      required: [id, email, settings]
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        settings:
+          $ref: '#/components/schemas/Settings'
+    RegisterRequest:
+      type: object
+      required: [email, password, inviteCode]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        inviteCode:
+          type: string
+        rememberMe:
+          type: boolean
+        language:
+          type: string
+          enum: [ZH, EN]
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        rememberMe:
+          type: boolean
+    Deck:
+      type: object
+      required: [id, name, newCount, relearnCount, learnRelearnCount, reviewRelearnCount, dueCount, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        newCount:
+          type: integer
+          format: int64
+        relearnCount:
+          type: integer
+          format: int64
+        learnRelearnCount:
+          type: integer
+          format: int64
+        reviewRelearnCount:
+          type: integer
+          format: int64
+        dueCount:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+    CreateDeckRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 120
+    RenameDeckRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 120
+    Card:
+      type: object
+      required: [id, deckId, front, back, position, status, stage, relearnMode, relearnCorrectCount, stateVersion, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        deckId:
+          type: integer
+          format: int64
+        front:
+          type: string
+        back:
+          type: string
+        position:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [new, review, relearn, graduated]
+        stage:
+          type: integer
+        relearnMode:
+          type: string
+          enum: [NONE, FORGOT, BLURRY]
+        relearnCorrectCount:
+          type: integer
+        dueDate:
+          type: string
+          format: date
+          nullable: true
+        stateVersion:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+    CreateCardRequest:
+      type: object
+      required: [front]
+      properties:
+        front:
+          type: string
+          minLength: 1
+        back:
+          type: string
+    UpdateCardRequest:
+      type: object
+      required: [front]
+      properties:
+        front:
+          type: string
+          minLength: 1
+        back:
+          type: string
+    CardList:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Card'
+        total:
+          type: integer
+          format: int64
+        page:
+          type: integer
+        pageSize:
+          type: integer
+    DeckOverview:
+      type: object
+      required: [deck, cards]
+      properties:
+        deck:
+          $ref: '#/components/schemas/Deck'
+        cards:
+          $ref: '#/components/schemas/CardList'
+    Bootstrap:
+      type: object
+      required: [user, decks]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        decks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Deck'
+    Queue:
+      type: object
+      required: [deckId, type, cardIds]
+      properties:
+        deckId:
+          type: integer
+          format: int64
+        type:
+          type: string
+          enum: [LEARN, REVIEW]
+        cardIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+    Session:
+      type: object
+      required: [deckId, type, timezone, order, cards, total]
+      properties:
+        deckId:
+          type: integer
+          format: int64
+        type:
+          type: string
+          enum: [LEARN, REVIEW]
+        timezone:
+          type: string
+        order:
+          type: array
+          items:
+            type: integer
+            format: int64
+        cards:
+          type: array
+          items:
+            $ref: '#/components/schemas/Card'
+        total:
+          type: integer
+    AnswerRequest:
+      type: object
+      required: [clientAnswerId, cardId, result, queueType, timezone, stateVersion]
+      properties:
+        clientAnswerId:
+          type: string
+        previousClientAnswerId:
+          type: string
+          nullable: true
+        cardId:
+          type: integer
+          format: int64
+        result:
+          $ref: '#/components/schemas/AnswerResult'
+        queueType:
+          type: string
+          enum: [LEARN, REVIEW]
+        timezone:
+          type: string
+        stateVersion:
+          type: integer
+          format: int64
+        graduate:
+          type: boolean
+        confirmForget:
+          type: boolean
+    AnswerResult:
+      type: string
+      enum: [FAMILIAR, BLURRY, FORGOT]
+    AnswerResponse:
+      type: object
+      required: [cardId, clientAnswerId, accepted, nextCardId, completed, requiresConfirmation]
+      properties:
+        cardId:
+          type: integer
+          format: int64
+        clientAnswerId:
+          type: string
+        accepted:
+          type: boolean
+        nextCardId:
+          type: integer
+          format: int64
+          nullable: true
+        completed:
+          type: boolean
+        requiresConfirmation:
+          type: boolean
+    AnswerBatchRequest:
+      type: object
+      required: [deckId, queueType, timezone, items]
+      properties:
+        deckId:
+          type: integer
+          format: int64
+        queueType:
+          type: string
+          enum: [LEARN, REVIEW]
+        timezone:
+          type: string
+        items:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/AnswerBatchItemRequest'
+    AnswerBatchItemRequest:
+      type: object
+      required: [clientAnswerId, cardId, result, stateVersion]
+      properties:
+        clientAnswerId:
+          type: string
+        cardId:
+          type: integer
+          format: int64
+        result:
+          $ref: '#/components/schemas/AnswerResult'
+        stateVersion:
+          type: integer
+          format: int64
+        previousClientAnswerId:
+          type: string
+          nullable: true
+        graduate:
+          type: boolean
+        confirmForget:
+          type: boolean
+    AnswerBatchResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnswerBatchItemResponse'
+    AnswerBatchItemResponse:
+      type: object
+      required: [cardId, clientAnswerId, accepted, code, nextCardId, completed, requiresConfirmation]
+      properties:
+        cardId:
+          type: integer
+          format: int64
+        clientAnswerId:
+          type: string
+        accepted:
+          type: boolean
+        code:
+          type: string
+        nextCardId:
+          type: integer
+          format: int64
+          nullable: true
+        completed:
+          type: boolean
+        requiresConfirmation:
+          type: boolean
+    Statistics:
+      type: object
+      required:
+        - learningDay
+        - learnedToday
+        - reviewedToday
+        - tomorrowDue
+        - relearnCount
+        - stageDistribution
+        - resultCounts
+        - retentionRate
+        - hourlyDistribution
+        - forecast
+        - deckOptions
+      properties:
+        learningDay:
+          type: string
+          format: date
+        learnedToday:
+          type: integer
+          format: int64
+        reviewedToday:
+          type: integer
+          format: int64
+        tomorrowDue:
+          type: integer
+          format: int64
+        relearnCount:
+          type: integer
+          format: int64
+        stageDistribution:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+        resultCounts:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+        retentionRate:
+          type: number
+          nullable: true
+        hourlyDistribution:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+        forecast:
+          $ref: '#/components/schemas/Forecast'
+        deckOptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeckOption'
+    Forecast:
+      type: object
+      required: [day7, day30, day90, day180]
+      properties:
+        day7:
+          type: integer
+          format: int64
+        day30:
+          type: integer
+          format: int64
+        day90:
+          type: integer
+          format: int64
+        day180:
+          type: integer
+          format: int64
+    DeckOption:
+      type: object
+      required: [id, name, deleted]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        deleted:
+          type: boolean
+    ParseCardRequest:
+      type: object
+      required: [source]
+      properties:
+        source:
+          type: string
+    ImportCardsRequest:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 5000
+          items:
+            $ref: '#/components/schemas/ImportCardRequest'
+    ImportCardRequest:
+      type: object
+      required: [front, back]
+      properties:
+        front:
+          type: string
+        back:
+          type: string
+    ImportPreview:
+      type: object
+      required: [items, total, validCount, duplicateCount, invalidCount]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportPreviewItem'
+        total:
+          type: integer
+        validCount:
+          type: integer
+        duplicateCount:
+          type: integer
+        invalidCount:
+          type: integer
+    ImportPreviewItem:
+      type: object
+      required: [row, front, back, duplicate, errors]
+      properties:
+        row:
+          type: integer
+        front:
+          type: string
+        back:
+          type: string
+        duplicate:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+    ImportResult:
+      type: object
+      required: [created, skippedDuplicates]
+      properties:
+        created:
+          type: integer
+        skippedDuplicates:
+          type: integer
+    UpdateSettingsRequest:
+      type: object
+      required: [refreshTime, language, theme]
+      properties:
+        refreshTime:
+          type: string
+          format: time
+        language:
+          type: string
+          enum: [ZH, EN]
+        theme:
+          type: string
+          enum: [SYSTEM, LIGHT, DARK]
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+          minLength: 8

@@ -1,0 +1,302 @@
+{
+  "schedule": [
+    {
+      "name": "new-card-familiar",
+      "queueType": "LEARN",
+      "state": {
+        "stage": -1,
+        "queueType": "NEW",
+        "relearnMode": "NONE",
+        "relearnOrigin": null,
+        "relearnCorrectCount": 0,
+        "dueDate": null,
+        "dueSince": null
+      },
+      "result": "FAMILIAR",
+      "expected": {
+        "stage": 0,
+        "queueType": "REVIEW",
+        "relearnMode": "NONE",
+        "relearnOrigin": null,
+        "relearnCorrectCount": 0,
+        "dueOffsetDays": 1
+      }
+    },
+    {
+      "name": "new-card-blurry",
+      "queueType": "LEARN",
+      "state": {
+        "stage": -1,
+        "queueType": "NEW",
+        "relearnMode": "NONE",
+        "relearnOrigin": null,
+        "relearnCorrectCount": 0,
+        "dueDate": null,
+        "dueSince": null
+      },
+      "result": "BLURRY",
+      "expected": {
+        "stage": -1,
+        "queueType": "RELEARN",
+        "relearnMode": "BLURRY",
+        "relearnOrigin": "LEARN",
+        "relearnCorrectCount": 0
+      }
+    },
+    {
+      "name": "new-card-forgot",
+      "queueType": "LEARN",
+      "state": {
+        "stage": -1,
+        "queueType": "NEW",
+        "relearnMode": "NONE",
+        "relearnOrigin": null,
+        "relearnCorrectCount": 0,
+        "dueDate": null,
+        "dueSince": null
+      },
+      "result": "FORGOT",
+      "expected": {
+        "stage": -1,
+        "queueType": "RELEARN",
+        "relearnMode": "FORGOT",
+        "relearnOrigin": "LEARN",
+        "relearnCorrectCount": 0
+      }
+    },
+    {
+      "name": "review-familiar-advances",
+      "queueType": "REVIEW",
+      "state": {
+        "stage": 6,
+        "queueType": "REVIEW",
+        "relearnMode": "NONE",
+        "relearnOrigin": null,
+        "relearnCorrectCount": 0,
+        "dueDate": "2026-01-01",
+        "dueSince": "2026-01-01T00:00:00Z"
+      },
+      "result": "FAMILIAR",
+      "expected": {
+        "stage": 7,
+        "queueType": "REVIEW",
+        "relearnMode": "NONE",
+        "relearnOrigin": null,
+        "relearnCorrectCount": 0,
+        "dueOffsetDays": 90
+      }
+    },
+    {
+      "name": "review-blurry-high-stage",
+      "queueType": "REVIEW",
+      "state": {
+        "stage": 6,
+        "queueType": "REVIEW",
+        "relearnMode": "NONE",
+        "relearnOrigin": null,
+        "relearnCorrectCount": 0,
+        "dueDate": "2026-01-01",
+        "dueSince": "2026-01-01T00:00:00Z"
+      },
+      "result": "BLURRY",
+      "expected": {
+        "stage": 6,
+        "queueType": "RELEARN",
+        "relearnMode": "BLURRY",
+        "relearnOrigin": "REVIEW",
+        "relearnCorrectCount": 0
+      }
+    },
+    {
+      "name": "review-forgot-resets",
+      "queueType": "REVIEW",
+      "state": {
+        "stage": 6,
+        "queueType": "REVIEW",
+        "relearnMode": "NONE",
+        "relearnOrigin": null,
+        "relearnCorrectCount": 0,
+        "dueDate": "2026-01-01",
+        "dueSince": "2026-01-01T00:00:00Z"
+      },
+      "result": "FORGOT",
+      "expected": {
+        "stage": 6,
+        "queueType": "RELEARN",
+        "relearnMode": "FORGOT",
+        "relearnOrigin": "REVIEW",
+        "relearnCorrectCount": 0
+      }
+    },
+    {
+      "name": "blurry-relearn-familiar-counts",
+      "queueType": "LEARN",
+      "state": {
+        "stage": -1,
+        "queueType": "RELEARN",
+        "relearnMode": "BLURRY",
+        "relearnOrigin": "LEARN",
+        "relearnCorrectCount": 1,
+        "dueDate": "2026-01-01",
+        "dueSince": "2026-01-01T00:00:00Z"
+      },
+      "result": "FAMILIAR",
+      "expected": {
+        "stage": -1,
+        "queueType": "RELEARN",
+        "relearnMode": "BLURRY",
+        "relearnOrigin": "LEARN",
+        "relearnCorrectCount": 2
+      }
+    },
+    {
+      "name": "blurry-relearn-completes",
+      "queueType": "LEARN",
+      "state": {
+        "stage": -1,
+        "queueType": "RELEARN",
+        "relearnMode": "BLURRY",
+        "relearnOrigin": "LEARN",
+        "relearnCorrectCount": 2,
+        "dueDate": "2026-01-01",
+        "dueSince": "2026-01-01T00:00:00Z"
+      },
+      "result": "FAMILIAR",
+      "expected": {
+        "stage": 0,
+        "queueType": "REVIEW",
+        "relearnMode": "NONE",
+        "relearnOrigin": null,
+        "relearnCorrectCount": 0,
+        "dueOffsetDays": 1
+      }
+    },
+    {
+      "name": "forgot-relearn-completes",
+      "queueType": "REVIEW",
+      "state": {
+        "stage": 6,
+        "queueType": "RELEARN",
+        "relearnMode": "FORGOT",
+        "relearnOrigin": "REVIEW",
+        "relearnCorrectCount": 4,
+        "dueDate": "2026-01-01",
+        "dueSince": "2026-01-01T00:00:00Z"
+      },
+      "result": "FAMILIAR",
+      "expected": {
+        "stage": 0,
+        "queueType": "REVIEW",
+        "relearnMode": "NONE",
+        "relearnOrigin": null,
+        "relearnCorrectCount": 0,
+        "dueOffsetDays": 1
+      }
+    },
+    {
+      "name": "stage8-graduate",
+      "queueType": "REVIEW",
+      "state": {
+        "stage": 8,
+        "queueType": "REVIEW",
+        "relearnMode": "NONE",
+        "relearnOrigin": null,
+        "relearnCorrectCount": 0,
+        "dueDate": "2026-01-01",
+        "dueSince": "2026-01-01T00:00:00Z"
+      },
+      "result": "FAMILIAR",
+      "graduate": true,
+      "expected": {
+        "stage": 9,
+        "queueType": "DONE",
+        "relearnMode": "NONE",
+        "relearnOrigin": null,
+        "relearnCorrectCount": 0,
+        "dueDate": null,
+        "dueSince": null
+      }
+    }
+  ],
+  "queue": [
+    {
+      "name": "normal-familiar-removes",
+      "order": [1, 2, 3],
+      "cards": [
+        { "id": 1, "status": "new", "stage": -1, "relearnMode": "NONE", "relearnCorrectCount": 0 },
+        { "id": 2, "status": "new", "stage": -1, "relearnMode": "NONE", "relearnCorrectCount": 0 },
+        { "id": 3, "status": "new", "stage": -1, "relearnMode": "NONE", "relearnCorrectCount": 0 }
+      ],
+      "cardId": 1,
+      "result": "FAMILIAR",
+      "queueType": "LEARN",
+      "expectedOrder": [2, 3]
+    },
+    {
+      "name": "new-blurry-reinserts-after-one",
+      "order": [1, 2, 3],
+      "cards": [
+        { "id": 1, "status": "new", "stage": -1, "relearnMode": "NONE", "relearnCorrectCount": 0 },
+        { "id": 2, "status": "new", "stage": -1, "relearnMode": "NONE", "relearnCorrectCount": 0 },
+        { "id": 3, "status": "new", "stage": -1, "relearnMode": "NONE", "relearnCorrectCount": 0 }
+      ],
+      "cardId": 1,
+      "result": "BLURRY",
+      "queueType": "LEARN",
+      "expectedOrder": [2, 1, 3]
+    },
+    {
+      "name": "relearn-first-familiar-inserts-after-two",
+      "order": [1, 2, 3],
+      "cards": [
+        { "id": 1, "status": "relearn", "stage": -1, "relearnMode": "BLURRY", "relearnCorrectCount": 0 },
+        { "id": 2, "status": "new", "stage": -1, "relearnMode": "NONE", "relearnCorrectCount": 0 },
+        { "id": 3, "status": "new", "stage": -1, "relearnMode": "NONE", "relearnCorrectCount": 0 }
+      ],
+      "cardId": 1,
+      "result": "FAMILIAR",
+      "queueType": "LEARN",
+      "expectedOrder": [2, 3, 1]
+    },
+    {
+      "name": "relearn-second-familiar-inserts-after-four",
+      "order": [1, 2, 3, 4, 5, 6, 7],
+      "cards": [
+        { "id": 1, "status": "relearn", "stage": -1, "relearnMode": "BLURRY", "relearnCorrectCount": 1 },
+        { "id": 2, "status": "new", "stage": -1, "relearnMode": "NONE", "relearnCorrectCount": 0 },
+        { "id": 3, "status": "new", "stage": -1, "relearnMode": "NONE", "relearnCorrectCount": 0 },
+        { "id": 4, "status": "new", "stage": -1, "relearnMode": "NONE", "relearnCorrectCount": 0 },
+        { "id": 5, "status": "new", "stage": -1, "relearnMode": "NONE", "relearnCorrectCount": 0 },
+        { "id": 6, "status": "new", "stage": -1, "relearnMode": "NONE", "relearnCorrectCount": 0 },
+        { "id": 7, "status": "new", "stage": -1, "relearnMode": "NONE", "relearnCorrectCount": 0 }
+      ],
+      "cardId": 1,
+      "result": "FAMILIAR",
+      "queueType": "LEARN",
+      "expectedOrder": [2, 3, 4, 5, 1, 6, 7]
+    },
+    {
+      "name": "relearn-tail-fallback",
+      "order": [1, 2],
+      "cards": [
+        { "id": 1, "status": "relearn", "stage": -1, "relearnMode": "BLURRY", "relearnCorrectCount": 1 },
+        { "id": 2, "status": "new", "stage": -1, "relearnMode": "NONE", "relearnCorrectCount": 0 }
+      ],
+      "cardId": 1,
+      "result": "FAMILIAR",
+      "queueType": "LEARN",
+      "expectedOrder": [2, 1]
+    },
+    {
+      "name": "single-relearn-repeats",
+      "order": [1],
+      "cards": [
+        { "id": 1, "status": "relearn", "stage": -1, "relearnMode": "BLURRY", "relearnCorrectCount": 0 }
+      ],
+      "cardId": 1,
+      "result": "FAMILIAR",
+      "queueType": "LEARN",
+      "expectedOrder": [1]
+    }
+  ]
+}

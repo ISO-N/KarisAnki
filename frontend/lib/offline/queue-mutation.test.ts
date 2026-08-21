@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import vectors from "../../../contracts/scheduling-vectors.json";
 import { mutateLocalQueue } from "./queue-mutation";
-import type { Card } from "@/lib/types";
+import type { AnswerResult, Card } from "@/lib/types";
+import type { StudyQueueType } from "./types";
 
 function card(
   id: number,
@@ -80,6 +82,27 @@ describe("mutateLocalQueue", () => {
     expect(result.order).toEqual([]);
     expect(result.reinserted).toBe(false);
     expect(result.card?.status).toBe("review");
+  });
+
+  it.each(vectors.queue)("matches shared queue vector $name", ({ order, cards, cardId, result, expectedOrder, queueType }) => {
+    const fullCards = cards.map((item) =>
+      card(
+        item.id,
+        item.status as Card["status"],
+        item.relearnCorrectCount,
+        item.relearnMode as Card["relearnMode"],
+      ),
+    );
+
+    const outcome = mutateLocalQueue({
+      order: [...order],
+      cards: fullCards,
+      cardId,
+      result: result as AnswerResult,
+      queueType: queueType as StudyQueueType,
+    });
+
+    expect(outcome.order).toEqual(expectedOrder);
   });
 
   it("requires confirmation before switching blurry relearn to forgot", () => {

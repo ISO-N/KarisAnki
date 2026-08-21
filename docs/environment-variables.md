@@ -54,9 +54,11 @@ KARISANKI_REGISTRATION_ENABLED=true
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `TEST_DB_URL` | `jdbc:postgresql://localhost:5433/karisanki_test` | 测试数据库 JDBC 地址 |
+| `TEST_DB_URL` | `jdbc:postgresql://localhost:18080/karisanki_test` | 测试数据库 JDBC 地址 |
 | `TEST_DB_USERNAME` | `karisanki` | 测试数据库用户 |
 | `TEST_DB_PASSWORD` | `karisanki` | 测试数据库密码 |
+| `TEST_BACKEND_PORT` | `18081` | E2E 后端端口 |
+| `TEST_FRONTEND_PORT` | `18082` | E2E 前端端口 |
 
 使用 `docker compose -f docker-compose.test.yml up -d` 启动测试数据库。详见 [测试](testing.md)。
 

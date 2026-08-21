@@ -20,7 +20,7 @@ cd backend
 # 构建（跳过测试）
 ./mvnw -DskipTests package
 
-# 测试前先启动测试数据库（端口 5433，库 karisanki_test）
+# 测试前先启动测试数据库（端口 18080，库 karisanki_test）
 docker compose -f docker-compose.test.yml up -d
 # 等健康检查通过
 docker compose -f docker-compose.test.yml ps
@@ -82,7 +82,7 @@ docker/entrypoint.sh     单容器内同时启动后端与前端
 .github/workflows/       master push 发布 GHCR 并保留最新两个版本
 docker-compose.yml        服务器部署（拉取 GHCR 单镜像）
 docker-compose.local.yml   本地源码构建单镜像
-docker-compose.test.yml    测试专用 PG（5433 端口）
+docker-compose.test.yml    测试专用 PG（18080 端口）
 ```
 
 ### 后端分层 (`backend/src/main/java/top/kariscode/karisanki/`)
@@ -109,7 +109,7 @@ docker-compose.test.yml    测试专用 PG（5433 端口）
 
 ### 数据与会话
 
-- PostgreSQL 17，运行时与测试库分离（`5432/karisanki` vs `5433/karisanki_test`）。
+- PostgreSQL 17，运行时与测试库分离（`5432/karisanki` vs `18080/karisanki_test`）。
 - Spring Session JDBC 持久化会话，Cookie 名 `KARISANKI_SESSION`。
 - 限流状态保存在内存，仅对单实例生效。
 
@@ -126,7 +126,7 @@ docker-compose.test.yml    测试专用 PG（5433 端口）
 | `COOKIE_SECURE` | `false` | HTTPS 时设 `true` |
 | `BACKEND_URL` | `http://127.0.0.1:8080` | 前端构建期后端地址（单容器内同机访问） |
 | `PORT` | `3000` | 前端宿主机端口 |
-| `TEST_DB_URL`/`TEST_DB_USERNAME`/`TEST_DB_PASSWORD` | `localhost:5433/karisanki_test` / `karisanki` | 仅测试用 |
+| `TEST_DB_URL`/`TEST_DB_USERNAME`/`TEST_DB_PASSWORD` | `localhost:18080/karisanki_test` / `karisanki` | 仅测试用 |
 
 完整说明见 `docs/environment-variables.md`，部署流程见 `docs/deployment.md`。
 

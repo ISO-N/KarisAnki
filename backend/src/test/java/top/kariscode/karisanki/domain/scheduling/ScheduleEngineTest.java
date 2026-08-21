@@ -4,13 +4,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import top.kariscode.karisanki.domain.AnswerResult;
 import top.kariscode.karisanki.domain.CardQueue;
 import top.kariscode.karisanki.domain.RelearnMode;
@@ -270,6 +279,54 @@ class ScheduleEngineTest {
 	})
 	void intervalMappingMatchesSpec(int stage, int expectedDays) {
 		assertEquals(expectedDays, engine.intervalDays(stage));
+	}
+
+	@ParameterizedTest
+	@MethodSource("contractScheduleVectors")
+	void contractScheduleVectorsMatchEngine(JsonNode vector) {
+		ScheduleState state = parseState(vector.get("state"));
+		StudyQueue queue = StudyQueue.valueOf(vector.get("queueType").asText());
+		AnswerResult result = AnswerResult.valueOf(vector.get("result").asText());
+		boolean graduate = vector.path("graduate").asBoolean(false);
+
+		ScheduleResult actual = engine.answer(state, queue, result, day, now, graduate, false);
+		JsonNode expected = vector.get("expected");
+
+		assertEquals(expected.get("stage").asInt(), actual.state().stage());
+		assertEquals(CardQueue.valueOf(expected.get("queueType").asText()), actual.state().queueType());
+		if (expected.has("relearnMode")) {
+			assertEquals(RelearnMode.valueOf(expected.get("relearnMode").asText()), actual.state().relearnMode());
+		}
+		if (expected.has("relearnOrigin")) {
+			assertEquals(expected.hasNonNull("relearnOrigin") ? RelearnOrigin.valueOf(expected.get("relearnOrigin").asText()) : null, actual.state().relearnOrigin());
+		}
+		if (expected.has("relearnCorrectCount")) {
+			assertEquals(expected.get("relearnCorrectCount").asInt(), actual.state().relearnCorrectCount());
+		}
+		if (expected.has("dueOffsetDays")) {
+			assertEquals(day.plusDays(expected.get("dueOffsetDays").asLong()), actual.state().dueDate());
+		} else if (expected.has("dueDate")) {
+			assertEquals(expected.hasNonNull("dueDate") ? LocalDate.parse(expected.get("dueDate").asText()) : null, actual.state().dueDate());
+		}
+		if (expected.has("dueSince")) {
+			assertEquals(expected.hasNonNull("dueSince") ? Instant.parse(expected.get("dueSince").asText()) : null, actual.state().dueSince());
+		}
+	}
+
+	private static Stream<Arguments> contractScheduleVectors() throws Exception {
+		JsonNode root = new ObjectMapper().readTree(Files.readString(Path.of("..", "contracts", "scheduling-vectors.json")));
+		List<Arguments> vectors = new ArrayList<>();
+		root.get("schedule").forEach(node -> vectors.add(Arguments.of(node)));
+		return vectors.stream();
+	}
+
+	private ScheduleState parseState(JsonNode node) {
+		return new ScheduleState(node.get("stage").asInt(), CardQueue.valueOf(node.get("queueType").asText()),
+				RelearnMode.valueOf(node.get("relearnMode").asText()),
+				node.hasNonNull("relearnOrigin") ? RelearnOrigin.valueOf(node.get("relearnOrigin").asText()) : null,
+				node.get("relearnCorrectCount").asInt(),
+				node.hasNonNull("dueDate") ? LocalDate.parse(node.get("dueDate").asText()) : null,
+				node.hasNonNull("dueSince") ? Instant.parse(node.get("dueSince").asText()) : null);
 	}
 
 	private ScheduleState review(int stage) {

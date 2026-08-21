@@ -16,6 +16,7 @@ import jakarta.servlet.http.HttpSession;
 import top.kariscode.karisanki.domain.user.User;
 import top.kariscode.karisanki.domain.user.UserSession;
 import top.kariscode.karisanki.repository.UserSessionRepository;
+import top.kariscode.karisanki.service.StatisticsCacheService;
 
 @Service
 public class SessionRegistryService {
@@ -25,11 +26,13 @@ public class SessionRegistryService {
 
 	private final UserSessionRepository userSessionRepository;
 	private final SessionRepository<?> sessionRepository;
+	private final StatisticsCacheService statisticsCacheService;
 
 	public SessionRegistryService(UserSessionRepository userSessionRepository,
-			SessionRepository<?> sessionRepository) {
+			SessionRepository<?> sessionRepository, StatisticsCacheService statisticsCacheService) {
 		this.userSessionRepository = userSessionRepository;
 		this.sessionRepository = sessionRepository;
+		this.statisticsCacheService = statisticsCacheService;
 	}
 
 	@Scheduled(fixedDelayString = "${karisanki.session-cleanup-interval:6h}")
@@ -69,6 +72,8 @@ public class SessionRegistryService {
 			return;
 		}
 		String sessionId = session.getId();
+		userSessionRepository.findById(sessionId)
+				.ifPresent(row -> statisticsCacheService.invalidateUser(row.getUserId()));
 		userSessionRepository.deleteById(sessionId);
 		session.invalidate();
 	}
@@ -89,6 +94,8 @@ public class SessionRegistryService {
 				userSessionRepository.deleteById(row.getSessionId());
 			}
 		});
+
+		statisticsCacheService.invalidateUser(userId);
 
 		if (currentSession != null) {
 			userSessionRepository.deleteById(currentSessionId);

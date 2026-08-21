@@ -1,0 +1,170 @@
+name: quality
+
+on:
+  workflow_call:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Check OpenSpec scenario coverage
+        run: node scripts/check-spec-coverage.mjs
+      - name: Check generated API types match contract
+        working-directory: frontend
+        run: |
+          npm run test:contract
+          git diff --exit-code lib/api-contract.ts
+
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: karisanki_test
+          POSTGRES_USER: karisanki
+          POSTGRES_PASSWORD: karisanki
+        ports:
+          - 18080:5432
+        options: >-
+          --health-cmd "pg_isready -U karisanki -d karisanki_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      - name: Run backend tests
+        working-directory: backend
+        run: ./mvnw test
+        env:
+          TEST_DB_URL: jdbc:postgresql://localhost:18080/karisanki_test
+          TEST_DB_USERNAME: karisanki
+          TEST_DB_PASSWORD: karisanki
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+      - name: Unit and component tests
+        working-directory: frontend
+        run: npm test
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: karisanki_test
+          POSTGRES_USER: karisanki
+          POSTGRES_PASSWORD: karisanki
+        ports:
+          - 18080:5432
+        options: >-
+          --health-cmd "pg_isready -U karisanki -d karisanki_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Start backend
+        working-directory: backend
+        env:
+          SERVER_PORT: "18081"
+          KARISANKI_REGISTRATION_ENABLED: "true"
+          KARISANKI_INVITE_CODES: testcode,othercode
+          KARISANKI_RATE_LIMIT_MAX_ATTEMPTS: "1000"
+          DB_URL: jdbc:postgresql://localhost:18080/karisanki_test
+          DB_USERNAME: karisanki
+          DB_PASSWORD: karisanki
+        run: |
+          ./mvnw -q -DskipTests spring-boot:run &
+          echo $! > /tmp/backend.pid
+      - name: Start frontend
+        working-directory: frontend
+        env:
+          BACKEND_URL: http://127.0.0.1:18081
+          PORT: 18082
+          SERVER_PORT: 18081
+          KARISANKI_REGISTRATION_ENABLED: "true"
+          KARISANKI_INVITE_CODES: testcode,othercode
+          KARISANKI_RATE_LIMIT_MAX_ATTEMPTS: "100"
+          TEST_DB_URL: jdbc:postgresql://localhost:18080/karisanki_test
+          TEST_DB_USERNAME: karisanki
+          TEST_DB_PASSWORD: karisanki
+        run: |
+          npm run dev &
+          echo $! > /tmp/frontend.pid
+      - name: Wait for services
+        run: |
+          for i in $(seq 1 120); do
+            curl -fsS http://127.0.0.1:18082/api/auth/registration-status && exit 0
+            sleep 1
+          done
+          exit 1
+      - name: Run E2E
+        working-directory: frontend
+        env:
+          TEST_BACKEND_PORT: "18081"
+          TEST_FRONTEND_PORT: "18082"
+        run: npm run test:e2e
+      - name: Stop services
+        if: always()
+        run: |
+          kill $(cat /tmp/frontend.pid) 2>/dev/null || true
+          kill $(cat /tmp/backend.pid) 2>/dev/null || true
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Docker smoke
+        env:
+          DB_PORT: "18080"
+          BACKEND_PORT: "18081"
+          FRONTEND_PORT: "18082"
+        run: bash scripts/docker-smoke.sh

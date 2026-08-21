@@ -1,0 +1,88 @@
+coverage:
+  account-auth:
+    requirements:
+      "*":
+        tests:
+          - backend/src/test/java/top/kariscode/karisanki/ApplicationIntegrationTest.java
+          - backend/src/test/java/top/kariscode/karisanki/service/AuthServiceTest.java
+          - backend/src/test/java/top/kariscode/karisanki/security/AuthRateLimiterTest.java
+          - frontend/components/auth-form.test.tsx
+          - frontend/lib/auth-context.test.tsx
+          - frontend/e2e/auth.spec.ts
+  decks-cards:
+    requirements:
+      "*":
+        tests:
+          - backend/src/test/java/top/kariscode/karisanki/ApplicationIntegrationTest.java
+          - backend/src/test/java/top/kariscode/karisanki/CardImportIntegrationTest.java
+          - frontend/components/deck-list.test.tsx
+          - frontend/components/deck-detail.test.tsx
+          - frontend/components/card-editor.test.tsx
+          - frontend/components/import-cards.test.tsx
+          - frontend/e2e/decks-cards.spec.ts
+  deployment:
+    requirements:
+      "*":
+        tests:
+          - scripts/docker-smoke.sh
+          - scripts/prune-ghcr.sh
+          - .github/workflows/quality.yml
+  frontend-design:
+    requirements:
+      "*":
+        tests:
+          - frontend/components/study-session.test.tsx
+          - frontend/components/rating-bar.test.tsx
+          - frontend/components/markdown-content.test.tsx
+          - frontend/components/auth-form.test.tsx
+          - frontend/e2e/design.spec.ts
+  network-performance:
+    requirements:
+      "*":
+        tests:
+          - backend/src/test/java/top/kariscode/karisanki/NetworkPerformanceIntegrationTest.java
+          - frontend/lib/use-api-data.test.tsx
+          - frontend/lib/api-cache.test.ts
+          - frontend/lib/api.test.ts
+          - frontend/e2e/offline.spec.ts
+  offline-session:
+    requirements:
+      "*":
+        tests:
+          - backend/src/test/java/top/kariscode/karisanki/OfflineSessionIntegrationTest.java
+          - frontend/lib/offline/outbox.test.ts
+          - frontend/lib/offline/session-merge.test.ts
+          - frontend/lib/offline/session-store.test.ts
+          - frontend/e2e/offline.spec.ts
+  statistics:
+    requirements:
+      "*":
+        tests:
+          - backend/src/test/java/top/kariscode/karisanki/ApplicationIntegrationTest.java
+          - backend/src/test/java/top/kariscode/karisanki/service/StatisticsServiceTest.java
+          - frontend/app/statistics/page.test.tsx
+          - frontend/e2e/statistics-settings.spec.ts
+  study-scheduling:
+    requirements:
+      "*":
+        tests:
+          - backend/src/test/java/top/kariscode/karisanki/domain/scheduling/ScheduleEngineTest.java
+          - backend/src/test/java/top/kariscode/karisanki/service/QueueSimulationServiceTest.java
+          - frontend/lib/offline/queue-mutation.test.ts
+          - frontend/e2e/study.spec.ts
+  user-settings:
+    requirements:
+      "*":
+        tests:
+          - backend/src/test/java/top/kariscode/karisanki/ApplicationIntegrationTest.java
+          - backend/src/test/java/top/kariscode/karisanki/service/TimeServiceTest.java
+          - frontend/app/settings/page.test.tsx
+          - frontend/e2e/statistics-settings.spec.ts
+  testing:
+    requirements:
+      "*":
+        tests:
+          - backend/src/test/java/top/kariscode/karisanki/ApiContractIntegrationTest.java
+          - scripts/check-spec-coverage.mjs
+          - scripts/docker-smoke.sh
+          - frontend/e2e/*.spec.ts
