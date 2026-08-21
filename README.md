@@ -136,7 +136,7 @@ npm run dev                     # http://localhost:3000
 ├── .github/workflows/       # GitHub Actions（master push 发布 GHCR）
 ├── docker-compose.yml       # 服务器部署（拉取 GHCR 单镜像）
 ├── docker-compose.local.yml  # 本地源码构建单镜像
-└── docker-compose.test.yml  # 测试专用 PG（宿主机 5433 → karisanki_test）
+└── docker-compose.test.yml  # 测试专用 PG（宿主机 18080 → karisanki_test）
 ```
 
 ---
@@ -182,7 +182,7 @@ npm run dev                     # http://localhost:3000
 
 ## 🧪 测试
 
-后端测试直连真实 PostgreSQL（`localhost:5433/karisanki_test`），不使用 H2 / Testcontainers。Flyway 在启动时自动应用 `V1` 至 `V3`，`spring.jpa.hibernate.ddl-auto=validate` 校验实体与 schema。
+后端测试直连真实 PostgreSQL（`localhost:18080/karisanki_test`），不使用 H2 / Testcontainers。Flyway 在启动时自动应用迁移，`spring.jpa.hibernate.ddl-auto=validate` 校验实体与 schema。
 
 ```bash
 # 启动测试数据库并等待健康检查通过
