@@ -49,7 +49,7 @@
 | 后端 | Spring Boot 4.1 · Java 21 | Spring WebMVC / Data JPA / Security / Validation / Session JDBC / Flyway |
 | 数据库 | PostgreSQL 17 | 唯一持久化存储，Flyway 管理迁移（`V1`、`V2`） |
 | 前端 | Next.js 16 · React 19 | App Router + `output: standalone`，Tailwind 4，shadcn `base-nova`，KaTeX |
-| 部署 | Docker Compose | `postgres` + `backend` + `frontend` 三服务编排 |
+| 部署 | Docker Compose | `postgres` + `app` 单镜像编排，`master` push 自动发布 GHCR |
 
 ---
 
@@ -58,7 +58,7 @@
 ### 前置要求
 
 - JDK 21（后端本地运行）
-- Node.js 22+ / npm（前端本地运行）
+- Node.js 24+ / npm（前端本地运行）
 - Docker + Compose v2（容器化运行 / 测试数据库）
 - PostgreSQL 17（容器化已包含，本地开发可用宿主机实例）
 
@@ -118,7 +118,10 @@ npm run dev                     # http://localhost:3000
 │   └── app/globals.css      # 设计令牌与布局（亮/暗主题）
 ├── docs/                    # 部署 / 环境变量 / 备份恢复 / 代理 / 单实例 / 测试
 ├── openspec/                # 规格与变更记录
-├── docker-compose.yml       # 生产编排（postgres:5432 + backend:8080 + frontend:3000）
+├── Dockerfile               # 单镜像构建（后端 jar + 前端 standalone）
+├── docker/entrypoint.sh     # 单容器内同时启动后端与前端
+├── .github/workflows/       # GitHub Actions（master push 发布 GHCR）
+├── docker-compose.yml       # 生产编排（postgres + app 单镜像）
 └── docker-compose.test.yml  # 测试专用 PG（宿主机 5433 → karisanki_test）
 ```
 
@@ -137,10 +140,10 @@ npm run dev                     # http://localhost:3000
 | `KARISANKI_RATE_LIMIT_MAX_ATTEMPTS` | `10` | 限流窗口内最大尝试次数 |
 | `KARISANKI_RATE_LIMIT_WINDOW` | `10m` | 限流窗口 |
 | `COOKIE_SECURE` | `false` | HTTPS 时设 `true` |
-| `BACKEND_URL` | `http://localhost:8080` | 前端构建期与运行时后端地址 |
+| `BACKEND_URL` | `http://127.0.0.1:8080` | 前端构建期后端地址（单容器内同机访问） |
 | `PORT` | `3000` | 前端宿主机端口 |
 
-> `BACKEND_URL` 为构建期参数（`frontend/Dockerfile` 的 `ARG BACKEND_URL`），生产镜像必须在 `npm run build` 前传入正确值，否则 rewrite 目标错误。见 [`docs/proxy.md`](docs/proxy.md)。
+> `BACKEND_URL` 为构建期参数（根目录 `Dockerfile` 的 `ARG BACKEND_URL`），生产镜像必须在 `npm run build` 前传入正确值，否则 rewrite 目标错误。见 [`docs/proxy.md`](docs/proxy.md)。
 
 ---
 
@@ -205,7 +208,8 @@ docker compose up -d --build
 
 - 前端为唯一公网入口，建议在其前配置 TLS 终止（如 nginx 反向代理），示例见 [`docs/proxy.md`](docs/proxy.md)。
 - **单后端实例约束**：Flyway 在启动时执行迁移且限流/会话状态为进程内内存，不支持多后端副本并发。`replicas` / `scale` 必须为 1，详见 [`docs/single-instance.md`](docs/single-instance.md)。
-- 前端镜像为多阶段构建（`node:22-alpine` → `standalone`），`BACKEND_URL` 构建参数不可省略。
+- 根目录 `Dockerfile` 构建前后端合并镜像（`node:24-alpine` + Java 21 JRE），`BACKEND_URL` 构建参数不可省略。
+- `master` push 后 GitHub Actions 自动发布 `ghcr.io/<owner>/karisanki`（`latest` + `sha-<commit>`），并只保留最新两个包版本。
 
 ---
 
@@ -213,7 +217,7 @@ docker compose up -d --build
 
 | 文档 | 内容 |
 |---|---|
-| [部署](docs/deployment.md) | 三服务架构、前置条件、启动与验证 |
+| [部署](docs/deployment.md) | postgres + app 单镜像部署、GHCR 发布与保留策略 |
 | [环境变量](docs/environment-variables.md) | 全部变量默认值与说明 |
 | [测试](docs/testing.md) | 测试数据库与用例说明 |
 | [生产环境同域代理](docs/proxy.md) | rewrite 原理、构建期配置、nginx 示例 |

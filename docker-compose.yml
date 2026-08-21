@@ -14,9 +14,12 @@ services:
       retries: 12
     restart: unless-stopped
 
-  backend:
+  app:
+    image: karisanki:local
     build:
-      context: ./backend
+      context: .
+      args:
+        BACKEND_URL: http://127.0.0.1:8080
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/karisanki
       DB_USERNAME: ${DB_USERNAME:-karisanki}
@@ -25,23 +28,14 @@ services:
       KARISANKI_INVITE_CODES: ${KARISANKI_INVITE_CODES:-}
       KARISANKI_RATE_LIMIT_MAX_ATTEMPTS: ${KARISANKI_RATE_LIMIT_MAX_ATTEMPTS:-10}
       KARISANKI_RATE_LIMIT_WINDOW: ${KARISANKI_RATE_LIMIT_WINDOW:-10m}
+      KARISANKI_IMPORT_MAX_SOURCE_BYTES: ${KARISANKI_IMPORT_MAX_SOURCE_BYTES:-2097152}
+      KARISANKI_IMPORT_MAX_CARDS: ${KARISANKI_IMPORT_MAX_CARDS:-5000}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-      args:
-        BACKEND_URL: ${BACKEND_URL:-http://backend:8080}
-    environment:
-      BACKEND_URL: http://backend:8080
     ports:
       - "${PORT:-3000}:3000"
     depends_on:
-      - backend
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

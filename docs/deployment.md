@@ -1,6 +1,6 @@
 # 部署
 
-KarisAnki v1 由 PostgreSQL、Spring Boot 后端和 Next.js 前端三个服务组成。前端是唯一面向浏览器的入口，并通过 `/api/*` 把请求代理到后端，因此两个应用位于同一个域名下，可以共享 Session Cookie。
+KarisAnki 使用 PostgreSQL 和 `app` 单容器部署。`app` 镜像同时包含 Spring Boot 后端与 Next.js 前端：后端监听容器内 `:8080`，前端监听 `:3000`，并把 `/api/*` 代理到同一容器内的后端。
 
 ## 前置条件
 
@@ -30,11 +30,20 @@ docker compose up -d --build
 | `KARISANKI_RATE_LIMIT_WINDOW` | 限流窗口 |
 | `COOKIE_SECURE` | 通过 HTTPS 提供服务时设为 `true` |
 | `PORT` | 前端宿主机端口 |
-| `BACKEND_URL` | 前端到后端的构建期 URL；Compose 默认使用 `http://backend:8080` |
+| `BACKEND_URL` | 前端到后端的构建期 URL；Compose 默认使用 `http://127.0.0.1:8080` |
 
 ## 单后端实例
 
-v1 在后端启动时执行 Flyway 迁移，不支持多个后端副本。必须只运行一个后端容器。如果后端重启，它可能再次执行迁移；如果同时启动第二个后端，两个实例可能在迁移上发生竞争。详见 [单后端实例约束](single-instance.md)。
+v1 在后端启动时执行 Flyway 迁移，不支持多个后端副本。`app` 容器内只有一个后端进程，因此部署时必须只运行一个 `app` 容器。如果容器重启，它可能再次执行迁移；如果同时启动第二个容器，两个实例可能在迁移上发生竞争。详见 [单后端实例约束](single-instance.md)。
+
+## CI 发布与 GHCR 保留
+
+推送到 `master` 时，`.github/workflows/publish.yml` 会自动构建并发布 `ghcr.io/<owner>/karisanki` 镜像：
+
+- 标签为 `latest` 和 `sha-<commit>`。
+- 构建成功并推送后才执行清理。
+- 清理会按 `created_at` 倒序排列包版本，只保留最新两个版本，删除其余版本。
+- 首次发布、package 尚不存在或版本数不超过两个时，不执行删除。
 
 ## 验证
 

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 KarisAnki — 自托管闪卡复习应用，支持账号卡组、间隔复习、重学流程、统计分析和同域部署。前端是唯一面向浏览器的入口，通过 `/api/*` 代理到后端以共享 `KARISANKI_SESSION` Cookie。
 
-技术栈：后端 Spring Boot 4.1 / Java 21 / PostgreSQL 17 / Flyway / Spring Session JDBC；前端 Next.js 16 / React 19 / Tailwind 4 / KaTeX；部署 Docker Compose。
+技术栈：后端 Spring Boot 4.1 / Java 21 / PostgreSQL 17 / Flyway / Spring Session JDBC；前端 Next.js 16 / React 19 / Node 24 / Tailwind 4 / KaTeX；部署 Docker Compose + GHCR。
 
 ## 常用命令
 
@@ -56,7 +56,7 @@ curl -I http://localhost:3000
 curl http://localhost:3000/api/auth/registration-status
 ```
 
-前端镜像构建期需通过 `BACKEND_URL`（默认 `http://backend:8080`，见 `frontend/Dockerfile` 的 `ARG BACKEND_URL`）决定 `next.config.ts` 中 rewrite 目标。
+根目录 `Dockerfile` 构建前后端合并镜像，构建期需通过 `BACKEND_URL`（默认 `http://127.0.0.1:8080`，见 `Dockerfile` 的 `ARG BACKEND_URL`）决定 `next.config.ts` 中 rewrite 目标。
 
 ## 架构与目录结构
 
@@ -65,7 +65,10 @@ backend/          Spring Boot，包前缀 top.kariscode.karisanki
 frontend/         Next.js App Router，standalone 部署
 docs/             部署/环境变量/备份/代理/单实例/测试 文档
 openspec/         规格与变更记录
-docker-compose.yml        生产/开发三服务编排（postgres/backend/frontend）
+Dockerfile              单镜像构建（后端 jar + 前端 standalone）
+docker/entrypoint.sh     单容器内同时启动后端与前端
+.github/workflows/       master push 发布 GHCR 并保留最新两个版本
+docker-compose.yml        生产/开发编排（postgres + app 单镜像）
 docker-compose.test.yml   测试专用 PG（5433 端口）
 ```
 
@@ -86,7 +89,7 @@ docker-compose.test.yml   测试专用 PG（5433 端口）
 - `app/` — App Router 路由：`layout.tsx` 全局布局、`page.tsx` 首页、`decks/`、`login/`、`register/`、`settings/`、`statistics/`、`globals.css`
 - `components/` — 业务组件：`app-nav`、`auth-form`、`card-editor`、`review-card`/`study-session`/`rating-bar`、`dashboard-today`、`markdown-content`（`react-markdown` + `remark-gfm`/`remark-math` + `rehype-katex`/`rehype-sanitize`）、`session-header`/`page-header` 等；`components/ui/` 为 shadcn 基础组件（`style: base-nova`，`baseColor: neutral`，见 `components.json`）
 - `lib/` — `api.ts`（fetch 封装，相对路径 `/api/*`）、`auth-context.tsx`、`theme.tsx`、`i18n.tsx`、`storage.ts`、`utils.ts`
-- `next.config.ts` — `output: "standalone"`，`rewrites()` 将 `/api/:path*` 代理到 `BACKEND_URL`（或 `NEXT_PUBLIC_BACKEND_URL`，默认 `http://localhost:8080`）
+- `next.config.ts` — `output: "standalone"`，`rewrites()` 将 `/api/:path*` 代理到 `BACKEND_URL`（构建期由根目录 `Dockerfile` 传入，默认 `http://127.0.0.1:8080`；本地开发默认 `http://localhost:8080`）
 - `app/globals.css` — 设计令牌（`--primary: #0e7773` 等）、亮/暗主题、`.app-shell`/`.app-main`/`.review-viewport`/`.markdown-body` 等布局类，`@custom-variant dark` 适配 Tailwind 4
 
 路径别名：`@/*` 指向 `frontend/*`（`tsconfig.json` / `components.json`）。
@@ -108,7 +111,7 @@ docker-compose.test.yml   测试专用 PG（5433 端口）
 | `KARISANKI_RATE_LIMIT_MAX_ATTEMPTS` | `10` | 限流窗口内最大尝试次数 |
 | `KARISANKI_RATE_LIMIT_WINDOW` | `10m` | 限流窗口 |
 | `COOKIE_SECURE` | `false` | HTTPS 时设 `true` |
-| `BACKEND_URL` | `http://localhost:8080` | 前端构建期与运行时后端地址 |
+| `BACKEND_URL` | `http://127.0.0.1:8080` | 前端构建期后端地址（单容器内同机访问） |
 | `PORT` | `3000` | 前端宿主机端口 |
 | `TEST_DB_URL`/`TEST_DB_USERNAME`/`TEST_DB_PASSWORD` | `localhost:5433/karisanki_test` / `karisanki` | 仅测试用 |
 
