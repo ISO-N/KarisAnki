@@ -6,9 +6,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import top.kariscode.karisanki.domain.AnswerResult;
-import top.kariscode.karisanki.domain.CardQueue;
 import top.kariscode.karisanki.domain.StudyQueue;
 import top.kariscode.karisanki.domain.deck.AnswerEvent;
+import top.kariscode.karisanki.domain.deck.AnswerSubmission;
 import top.kariscode.karisanki.domain.deck.Card;
 import top.kariscode.karisanki.domain.deck.CardState;
 import top.kariscode.karisanki.domain.scheduling.ScheduleEngine;
@@ -17,6 +17,7 @@ import top.kariscode.karisanki.domain.scheduling.ScheduleState;
 import top.kariscode.karisanki.domain.user.User;
 import top.kariscode.karisanki.domain.user.UserSettings;
 import top.kariscode.karisanki.repository.AnswerEventRepository;
+import top.kariscode.karisanki.repository.AnswerSubmissionRepository;
 import top.kariscode.karisanki.repository.CardStateRepository;
 import top.kariscode.karisanki.repository.UserRepository;
 import top.kariscode.karisanki.web.dto.AnswerRequest;
@@ -30,6 +31,7 @@ public class AnswerService {
 	private final AuthService authService;
 	private final CardStateRepository cardStateRepository;
 	private final AnswerEventRepository answerEventRepository;
+	private final AnswerSubmissionRepository answerSubmissionRepository;
 	private final UserRepository userRepository;
 	private final QueueService queueService;
 	private final TimeService timeService;
@@ -37,12 +39,13 @@ public class AnswerService {
 
 	public AnswerService(CardService cardService, AuthService authService,
 			CardStateRepository cardStateRepository, AnswerEventRepository answerEventRepository,
-			UserRepository userRepository, QueueService queueService, TimeService timeService,
-			ScheduleEngine scheduleEngine) {
+			AnswerSubmissionRepository answerSubmissionRepository, UserRepository userRepository, QueueService queueService,
+			TimeService timeService, ScheduleEngine scheduleEngine) {
 		this.cardService = cardService;
 		this.authService = authService;
 		this.cardStateRepository = cardStateRepository;
 		this.answerEventRepository = answerEventRepository;
+		this.answerSubmissionRepository = answerSubmissionRepository;
 		this.userRepository = userRepository;
 		this.queueService = queueService;
 		this.timeService = timeService;
@@ -51,15 +54,23 @@ public class AnswerService {
 
 	@Transactional
 	public AnswerResponse answer(Long userId, AnswerRequest request) {
+		AnswerSubmission existing = answerSubmissionRepository.findByUserIdAndClientRequestId(userId,
+				request.clientAnswerId()).orElse(null);
+		if (existing != null) {
+			return toResponse(existing);
+		}
+
 		Card card = cardService.requireCard(userId, request.cardId());
 		UserSettings settings = authService.settings(userId);
 		CardState state = card.getState();
 		if (state == null) {
 			throw BusinessException.notFound("card_not_found", "卡片不存在");
 		}
-		if (!request.stateVersion().equals(state.getVersion())) {
+		if (!request.stateVersion().equals(state.getVersion())
+				&& !hasAcceptedPreviousChain(userId, request, card.getId())) {
 			throw BusinessException.conflict("queue_refresh", "卡片状态已变化，请刷新队列");
 		}
+
 		User user = userRepository.findById(userId)
 				.orElseThrow(() -> BusinessException.unauthorized("unauthenticated", "登录状态已失效"));
 
@@ -74,14 +85,31 @@ public class AnswerService {
 
 		applyToEntity(state, result.state());
 		cardStateRepository.save(state);
-		answerEventRepository.save(new AnswerEvent(user, card.getDeck(), card, now, timezone, learningDay,
-				result.scene(), result.stageBefore(), result.stageAfter(), request.result()));
+		AnswerEvent event = answerEventRepository.save(new AnswerEvent(user, card.getDeck(), card, now, timezone,
+				learningDay, result.scene(), result.stageBefore(), result.stageAfter(), request.result()));
 
 		StudyQueue queueType = request.queueType();
-		var queue = queueService.queue(userId, card.getDeck().getId(), queueType, timezone);
-		boolean completed = result.state().queueType() != CardQueue.RELEARN;
-		Long nextCardId = queue.cardIds().isEmpty() ? null : queue.cardIds().get(0);
-		return new AnswerResponse(card.getId(), nextCardId, queue.cardIds(), completed, false);
+		QueueService.QueueSnapshot snapshot = queueService.sessionQueue(userId, card.getDeck().getId(), queueType,
+				timezone);
+		Long nextCardId = snapshot.order().isEmpty() ? null : snapshot.order().get(0);
+		boolean completed = snapshot.order().isEmpty();
+		answerSubmissionRepository.save(new AnswerSubmission(user, request.clientAnswerId(), card, request.result(),
+				queueType, timezone, request.stateVersion(), request.previousClientAnswerId(),
+				Boolean.TRUE.equals(request.graduate()), Boolean.TRUE.equals(request.confirmForget()), completed,
+				nextCardId, event, now));
+
+		return new AnswerResponse(card.getId(), request.clientAnswerId(), true, nextCardId, completed, false);
+	}
+
+	private boolean hasAcceptedPreviousChain(Long userId, AnswerRequest request, Long cardId) {
+		return request.previousClientAnswerId() != null && answerSubmissionRepository
+				.findByUserIdAndCardIdAndClientRequestId(userId, cardId, request.previousClientAnswerId())
+				.isPresent();
+	}
+
+	private AnswerResponse toResponse(AnswerSubmission submission) {
+		return new AnswerResponse(submission.getCard().getId(), submission.getClientRequestId(), true,
+				submission.getNextCardId(), submission.isCompleted(), false);
 	}
 
 	private ScheduleState fromEntity(CardState state) {
