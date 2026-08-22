@@ -24,7 +24,7 @@
 
 ### 1. 同步引擎按“已接受评分”粒度 emit 链信息
 
-在 `SyncEngineEvent` 增加可选 `acceptedAnswer: { cardId: number; clientAnswerId: string }`。每次 `applyAcceptedToSession` 更新 IndexedDB 后，在 `markOutboxAccepted` 删除条目前 emit 该事件。这样 React 订阅者在 outbox 删除前就有机会更新本地状态；即使删除立即发生，也不会留下“已删除但页面不知道”的窗口。
+在 `SyncEngineEvent` 增加可选 `acceptedAnswer: { cardId: number; clientAnswerId: string }`。每次接受评分后先更新 IndexedDB，删除 outbox 条目后在同一同步 tick 内立即 emit 该事件；emit 前不插入其他 `await`，因此不会留下“已删除但页面不知道”的窗口。
 
 `session-sync.ts` 收到该事件时只合并 `lastClientAnswerIds`，不替换完整 session，避免覆盖用户在同步期间新提交的本地队列或卡片状态。
 
