@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
 import { useI18n } from "@/lib/i18n";
+import { relearnProgressLabel } from "@/lib/relearn-progress";
 import { useOfflineSession, type SyncStatus } from "@/lib/offline/session-sync";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -142,6 +143,9 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
   }, [phase, chooseResult, setPhase]);
 
   const statusLabel = phase === "loading" ? t("queueLoading") : type === "LEARN" ? t("startLearn") : t("startReview");
+  const familiarProgressLabel = card?.status === "relearn"
+    ? relearnProgressLabel(card.relearnCorrectCount, card.relearnMode, t("familiarProgress"))
+    : null;
   const completed = session?.completedCount ?? 0;
   const total = session?.total ?? 0;
 
@@ -237,6 +241,7 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
                   phase={phase}
                   statusLabel={statusLabel}
                   stageLabel={`${t("stage")} ${card.stage}`}
+                  familiarProgressLabel={familiarProgressLabel ?? undefined}
                   frontLabel={t("frontLabel")}
                   backLabel={t("backLabel")}
                 />

@@ -141,4 +141,26 @@ describe("StudySession", () => {
     await user.click(screen.getByRole("button", { name: "cancel" }));
     expect(mocks.sessionState.setPhase).toHaveBeenCalledWith("answer");
   });
+  it("shows relearn familiarity progress on a relearn card", () => {
+    const relearnCard = makeCard(1, {
+      status: "relearn",
+      relearnMode: "BLURRY",
+      relearnCorrectCount: 1,
+    });
+    mocks.sessionState.phase = "front";
+    mocks.sessionState.card = relearnCard;
+    mocks.sessionState.session = {
+      deckId: 1,
+      type: "LEARN",
+      timezone: "UTC",
+      order: [1],
+      cards: [relearnCard],
+      total: 1,
+      completedCount: 0,
+    };
+
+    render(<StudySession deckId={1} type="LEARN" />);
+
+    expect(screen.getByText("familiarProgress 1/3")).toBeInTheDocument();
+  });
 });
