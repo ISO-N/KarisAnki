@@ -14,6 +14,7 @@ import {
   Search,
   Trash2,
   Upload,
+  Volume2,
 } from "lucide-react";
 import { api, apiErrorMessage, clientTimezone } from "@/lib/api";
 import { invalidateApiCache } from "@/lib/api-cache";
@@ -36,7 +37,7 @@ import { PageHeader } from "@/components/page-header";
 import { RequireAuth } from "@/components/require-auth";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import type { Card as StudyCard, CardList, DeckOverview, ImportResult } from "@/lib/types";
+import type { Card as StudyCard, CardList, DeckOverview, ImportResult, PronunciationBackfillResult } from "@/lib/types";
 
 type CardPendingAction =
   | { type: "delete"; card: StudyCard }
@@ -59,6 +60,8 @@ export default function DeckDetailPage() {
   const [pendingBusy, setPendingBusy] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [backfillResult, setBackfillResult] = useState<PronunciationBackfillResult | null>(null);
+  const [backfillBusy, setBackfillBusy] = useState(false);
   const statusQuery = status === "all" ? "" : status;
 
   const { data: overview, loading, error, refresh } = useApiData<DeckOverview>({
@@ -100,6 +103,25 @@ export default function DeckDetailPage() {
     setImportOpen(false);
     await invalidateDeckData();
     await load();
+  };
+
+  const handleBackfillPronunciation = async () => {
+    setBackfillBusy(true);
+    setActionError("");
+    setMessage("");
+    try {
+      const result = await api<PronunciationBackfillResult>(`/api/decks/${deckId}/cards/pronunciation/backfill`, {
+        method: "POST",
+      });
+      setBackfillResult(result);
+      setMessage(t("pronunciationBackfillResult"));
+      await invalidateDeckData();
+      await load();
+    } catch (err) {
+      setActionError(apiErrorMessage(err, language, t("error")));
+    } finally {
+      setBackfillBusy(false);
+    }
   };
 
   const runPendingCardAction = async () => {
@@ -150,6 +172,10 @@ export default function DeckDetailPage() {
                 <Upload data-icon="inline-start" />
                 {t("importCards")}
               </Button>
+              <Button variant="outline" onClick={() => void handleBackfillPronunciation()} disabled={backfillBusy}>
+                {backfillBusy ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <Volume2 data-icon="inline-start" />}
+                {t("backfillPronunciation")}
+              </Button>
             </>
           }
         />
@@ -170,6 +196,15 @@ export default function DeckDetailPage() {
             <AlertTitle>{t("importCompleted")}</AlertTitle>
             <AlertDescription>
               {t("importCreated")} {importResult.created} / {t("importSkipped")} {importResult.skippedDuplicates}
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {backfillResult ? (
+          <Alert role="status">
+            <AlertTitle>{t("pronunciationBackfillResult")}</AlertTitle>
+            <AlertDescription>
+              {t("backfillUpdated")} {backfillResult.updated} · {t("backfillUnchanged")} {backfillResult.unchanged} · {t("backfillMissing")} {backfillResult.missing} · {t("backfillNotWord")} {backfillResult.notWord}
             </AlertDescription>
           </Alert>
         ) : null}

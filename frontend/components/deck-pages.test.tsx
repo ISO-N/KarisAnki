@@ -214,4 +214,39 @@ describe("DeckDetailPage", () => {
     render(<DeckDetailPage />);
     expect(screen.getAllByText("boom").length).toBeGreaterThan(0);
   });
+
+  it("backfills card phonetics and shows result stats", async () => {
+    const user = userEvent.setup();
+    mocks.data = {
+      deck: makeDeck(1),
+      cards: { items: [makeCard(1)], total: 1, page: 0, pageSize: 50 },
+    };
+    mocks.api.mockResolvedValue({ updated: 1, unchanged: 0, missing: 0, notWord: 0 });
+
+    render(<DeckDetailPage />);
+    await user.click(screen.getByRole("button", { name: "backfillPronunciation" }));
+
+    await waitFor(() =>
+      expect(mocks.api).toHaveBeenCalledWith(
+        "/api/decks/1/cards/pronunciation/backfill",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
+    expect(screen.getByText(/backfillUpdated/)).toBeInTheDocument();
+  });
+
+  it("shows an error when pronunciation backfill fails", async () => {
+    const user = userEvent.setup();
+    mocks.data = {
+      deck: makeDeck(1),
+      cards: { items: [makeCard(1)], total: 1, page: 0, pageSize: 50 },
+    };
+    mocks.api.mockRejectedValue(new Error("backfill boom"));
+
+    render(<DeckDetailPage />);
+    await user.click(screen.getByRole("button", { name: "backfillPronunciation" }));
+
+    await waitFor(() => expect(screen.getByText("backfill boom")).toBeInTheDocument());
+  });
 });
