@@ -45,6 +45,7 @@ export function makeCard(id: number, overrides: Partial<Card> = {}): Card {
     deckId: 1,
     front: `Front ${id}`,
     back: `Back ${id}`,
+    phonetic: null,
     position: id,
     status: "new",
     stage: -1,

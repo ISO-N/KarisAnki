@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MarkdownContent } from "@/components/markdown-content";
+import { PronunciationButton } from "@/components/pronunciation-button";
 import type { Card as StudyCard } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -17,9 +18,10 @@ interface ReviewCardProps {
   familiarProgressLabel?: string;
   frontLabel: string;
   backLabel: string;
+  pronunciationLabel?: string;
 }
 
-export function ReviewCard({ card, phase, statusLabel, stageLabel, familiarProgressLabel, frontLabel, backLabel }: ReviewCardProps) {
+export function ReviewCard({ card, phase, statusLabel, stageLabel, familiarProgressLabel, frontLabel, backLabel, pronunciationLabel = "Play pronunciation" }: ReviewCardProps) {
   const revealed = phase !== "front";
   const statusTone =
     card.status === "relearn" ? "warning" : card.status === "new" ? "primary" : "success";
@@ -44,10 +46,16 @@ export function ReviewCard({ card, phase, statusLabel, stageLabel, familiarProgr
                 revealed ? "opacity-80" : "opacity-100",
               )}
             >
-              <div className="mb-2 text-xs font-medium text-muted-foreground">{frontLabel}</div>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="text-xs font-medium text-muted-foreground">{frontLabel}</div>
+                <PronunciationButton front={card.front} label={pronunciationLabel} />
+              </div>
               <div className="markdown-body--centered">
                 <MarkdownContent content={card.front} />
               </div>
+              {card.phonetic ? (
+                <div className="mt-2 text-center text-sm text-muted-foreground">/{card.phonetic}/</div>
+              ) : null}
             </div>
 
             {revealed ? (

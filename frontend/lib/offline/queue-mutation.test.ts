@@ -15,6 +15,7 @@ function card(
     deckId: 1,
     front: `Front ${id}`,
     back: `Back ${id}`,
+    phonetic: null,
     position: id,
     status,
     stage: status === "relearn" ? 0 : -1,

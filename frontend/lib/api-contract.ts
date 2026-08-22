@@ -222,6 +222,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/decks/{deckId}/cards/pronunciation/backfill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deckId: components["parameters"]["DeckId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["backfillPronunciation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cards/{cardId}": {
         parameters: {
             query?: never;
@@ -470,6 +488,7 @@ export interface components {
             deckId: number;
             front: string;
             back: string;
+            phonetic?: string | null;
             /** Format: int64 */
             position: number;
             /** @enum {string} */
@@ -651,6 +670,12 @@ export interface components {
         ImportResult: {
             created: number;
             skippedDuplicates: number;
+        };
+        PronunciationBackfillResponse: {
+            updated: number;
+            unchanged: number;
+            missing: number;
+            notWord: number;
         };
         UpdateSettingsRequest: {
             /** Format: time */
@@ -1092,6 +1117,29 @@ export interface operations {
                 };
             };
             400: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    backfillPronunciation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deckId: components["parameters"]["DeckId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pronunciation backfill result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PronunciationBackfillResponse"];
+                };
+            };
             404: components["responses"]["Error"];
         };
     };
