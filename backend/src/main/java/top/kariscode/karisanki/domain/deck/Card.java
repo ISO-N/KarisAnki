@@ -31,6 +31,9 @@ public class Card {
 	@Column(columnDefinition = "text")
 	private String back;
 
+	@Column(columnDefinition = "text")
+	private String phonetic;
+
 	@Column(nullable = false)
 	private long position;
 
@@ -79,6 +82,14 @@ public class Card {
 
 	public String getBack() {
 		return back;
+	}
+
+	public String getPhonetic() {
+		return phonetic;
+	}
+
+	public void setPhonetic(String phonetic) {
+		this.phonetic = phonetic;
 	}
 
 	public long getPosition() {

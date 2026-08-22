@@ -82,4 +82,10 @@ public class CardController {
 			@PathVariable Long deckId, @RequestBody CardDtos.ImportCardsRequest request) {
 		return cardService.importCards(principal.id(), deckId, request);
 	}
+
+	@PostMapping("/decks/{deckId}/cards/pronunciation/backfill")
+	public CardDtos.PronunciationBackfillResponse backfillPronunciation(@AuthenticationPrincipal UserPrincipal principal,
+			@PathVariable Long deckId) {
+		return cardService.backfillPronunciation(principal.id(), deckId);
+	}
 }

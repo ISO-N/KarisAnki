@@ -253,6 +253,20 @@ paths:
           $ref: '#/components/responses/Error'
         '404':
           $ref: '#/components/responses/Error'
+  /decks/{deckId}/cards/pronunciation/backfill:
+    parameters:
+      - $ref: '#/components/parameters/DeckId'
+    post:
+      operationId: backfillPronunciation
+      responses:
+        '200':
+          description: Pronunciation backfill result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PronunciationBackfillResponse'
+        '404':
+          $ref: '#/components/responses/Error'
   /cards/{cardId}:
     parameters:
       - $ref: '#/components/parameters/CardId'
@@ -635,6 +649,9 @@ components:
           type: string
         back:
           type: string
+        phonetic:
+          type: string
+          nullable: true
         position:
           type: integer
           format: int64
@@ -1007,6 +1024,18 @@ components:
         created:
           type: integer
         skippedDuplicates:
+          type: integer
+    PronunciationBackfillResponse:
+      type: object
+      required: [updated, unchanged, missing, notWord]
+      properties:
+        updated:
+          type: integer
+        unchanged:
+          type: integer
+        missing:
+          type: integer
+        notWord:
           type: integer
     UpdateSettingsRequest:
       type: object
