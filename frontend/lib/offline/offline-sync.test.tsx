@@ -9,6 +9,7 @@ import {
   listPendingOutboxForSession,
 } from "./outbox";
 import { saveStoredSession } from "./session-store";
+import { resetSyncEngineForTest } from "./sync-engine";
 import { sessionKey, toStoredSession } from "./types";
 import { makeCard } from "../../test/factories";
 
@@ -55,6 +56,7 @@ vi.mock("@/lib/i18n", () => ({
 
 vi.mock("@/lib/network", () => ({
   useNetworkStatus: () => mocks.online,
+  isOnline: () => true,
 }));
 
 let sequence = 9100;
@@ -83,6 +85,7 @@ async function seedOfflineSession(deckId: number) {
 
 beforeEach(() => {
   mocks.api.mockReset();
+  resetSyncEngineForTest();
   mocks.t.mockClear();
   mocks.online = true;
 });
@@ -191,10 +194,12 @@ describe("offline session sync", () => {
     await waitFor(() => expect(result.current.phase).toBe("resume"));
     await result.current.resume();
 
+    await waitFor(() =>
+      expect(mocks.api).toHaveBeenCalledWith("/api/answer/batch", expect.anything()),
+    );
     await waitFor(() => expect(result.current.syncStatus).toBe("pending"));
     expect(result.current.pendingCount).toBe(1);
     expect(await listPendingOutboxForSession(key)).toHaveLength(1);
-    expect(mocks.api).toHaveBeenCalledWith("/api/answer/batch", expect.anything());
   });
 
 });

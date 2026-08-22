@@ -11,8 +11,10 @@ import {
   markOutboxAccepted,
   markOutboxConflicted,
 } from "./outbox";
-import { loadStoredSession, saveStoredSession, clearStoredSession } from "./session-store";
+import { openDatabase, requestResult, transactionDone } from "./idb";
+import { clearStoredSession, listStoredSessions, loadStoredSession, saveStoredSession } from "./session-store";
 import { fromStoredSession, sessionKey, toStoredSession } from "./types";
+import { makeCard } from "../../test/factories";
 
 describe("offline outbox persistence", () => {
   it("persists pending entries, batches them, accepts and clears them", async () => {
@@ -76,6 +78,49 @@ describe("offline outbox persistence", () => {
 });
 
 describe("offline session snapshot restore", () => {
+  it("returns an empty list when no sessions are stored", async () => {
+    const db = await openDatabase();
+    const transaction = db.transaction("sessions", "readwrite");
+    const store = transaction.objectStore("sessions");
+    const existing = (await requestResult(store.getAll())) as Array<{ key: string }>;
+    for (const entry of existing) store.delete(entry.key);
+    await transactionDone(transaction);
+
+    expect(await listStoredSessions()).toEqual([]);
+  });
+
+  it("filters malformed stored sessions from the list", async () => {
+    const key = sessionKey(9101, "LEARN");
+    await saveStoredSession(toStoredSession({
+      deckId: 9101,
+      type: "LEARN",
+      timezone: "UTC",
+      order: [1],
+      cards: [makeCard(1, { deckId: 9101 })],
+      total: 1,
+    }));
+
+    const db = await openDatabase();
+    const transaction = db.transaction("sessions", "readwrite");
+    transaction.objectStore("sessions").put({
+      key: "broken",
+      deckId: "invalid",
+      type: "LEARN",
+      timezone: "UTC",
+      order: [],
+      cards: [],
+      total: 1,
+      completedCount: 0,
+    });
+    await transactionDone(transaction);
+
+    const sessions = await listStoredSessions();
+    expect(sessions.some((session) => session.key === key)).toBe(true);
+    expect(sessions.some((session) => session.key === "broken")).toBe(false);
+
+    await clearStoredSession(key);
+  });
+
   it("round-trips a study session snapshot", async () => {
     const key = sessionKey(9003, "LEARN");
     const session: StudySession = {

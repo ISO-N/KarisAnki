@@ -14,11 +14,12 @@ interface ReviewCardProps {
   phase: ReviewPhase;
   statusLabel: string;
   stageLabel: string;
+  familiarProgressLabel?: string;
   frontLabel: string;
   backLabel: string;
 }
 
-export function ReviewCard({ card, phase, statusLabel, stageLabel, frontLabel, backLabel }: ReviewCardProps) {
+export function ReviewCard({ card, phase, statusLabel, stageLabel, familiarProgressLabel, frontLabel, backLabel }: ReviewCardProps) {
   const revealed = phase !== "front";
   const statusTone =
     card.status === "relearn" ? "warning" : card.status === "new" ? "primary" : "success";
@@ -28,7 +29,12 @@ export function ReviewCard({ card, phase, statusLabel, stageLabel, frontLabel, b
       <CardContent className="flex flex-1 flex-col p-0">
         <div className="flex items-center justify-between border-b px-4 py-3 sm:px-6">
           <Badge variant={statusTone}>{statusLabel}</Badge>
-          <span className="font-mono text-xs text-muted-foreground">{stageLabel}</span>
+          <div className="flex items-center gap-2">
+            {familiarProgressLabel ? (
+              <span className="font-mono text-xs text-muted-foreground">{familiarProgressLabel}</span>
+            ) : null}
+            <span className="font-mono text-xs text-muted-foreground">{stageLabel}</span>
+          </div>
         </div>
         <div className="flex flex-1 flex-col justify-center px-5 py-10 sm:px-10">
           <div className="mx-auto w-full max-w-2xl">
