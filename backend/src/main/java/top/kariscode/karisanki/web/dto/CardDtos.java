@@ -13,9 +13,9 @@ public final class CardDtos {
 	private CardDtos() {
 	}
 
-	public record CardResponse(Long id, Long deckId, String front, String back, long position, String status,
-			int stage, RelearnMode relearnMode, int relearnCorrectCount, LocalDate dueDate, Long stateVersion,
-			Instant createdAt) {
+	public record CardResponse(Long id, Long deckId, String front, String back, String phonetic, long position,
+			String status, int stage, RelearnMode relearnMode, int relearnCorrectCount, LocalDate dueDate,
+			Long stateVersion, Instant createdAt) {
 	}
 
 	public record CreateCardRequest(@NotBlank String front, String back) {
@@ -44,5 +44,8 @@ public final class CardDtos {
 	}
 
 	public record ImportResult(int created, int skippedDuplicates) {
+	}
+
+	public record PronunciationBackfillResponse(int updated, int unchanged, int missing, int notWord) {
 	}
 }

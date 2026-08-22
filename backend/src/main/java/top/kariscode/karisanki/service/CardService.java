@@ -31,16 +31,18 @@ public class CardService {
 	private final AppProperties appProperties;
 	private final ObjectMapper objectMapper;
 	private final StatisticsCacheService statisticsCacheService;
+	private final PronunciationService pronunciationService;
 
 	public CardService(DeckService deckService, CardRepository cardRepository,
 			CardStateRepository cardStateRepository, AppProperties appProperties, ObjectMapper objectMapper,
-			StatisticsCacheService statisticsCacheService) {
+			StatisticsCacheService statisticsCacheService, PronunciationService pronunciationService) {
 		this.deckService = deckService;
 		this.cardRepository = cardRepository;
 		this.cardStateRepository = cardStateRepository;
 		this.appProperties = appProperties;
 		this.objectMapper = objectMapper;
 		this.statisticsCacheService = statisticsCacheService;
+		this.pronunciationService = pronunciationService;
 	}
 
 	@Transactional
@@ -49,6 +51,7 @@ public class CardService {
 		String cleanFront = requireFront(front);
 		long position = cardRepository.maxPosition(deckId) + 1;
 		Card card = new Card(deck, cleanFront, cleanBack(back), position);
+		card.setPhonetic(pronunciationService.phoneticFor(cleanFront));
 		CardState state = new CardState(card);
 		card.setState(state);
 		cardRepository.save(card);
@@ -60,7 +63,9 @@ public class CardService {
 	@Transactional
 	public CardDtos.CardResponse update(Long userId, Long cardId, String front, String back) {
 		Card card = requireCard(userId, cardId);
-		card.updateContent(requireFront(front), cleanBack(back));
+		String cleanFront = requireFront(front);
+		card.updateContent(cleanFront, cleanBack(back));
+		card.setPhonetic(pronunciationService.phoneticFor(cleanFront));
 		cardRepository.save(card);
 		return toResponse(card);
 	}
@@ -162,6 +167,7 @@ public class CardService {
 			}
 
 			Card card = new Card(deck, normalized.front(), normalized.back(), position++);
+			card.setPhonetic(pronunciationService.phoneticFor(normalized.front()));
 			CardState state = new CardState(card);
 			card.setState(state);
 			cardRepository.save(card);
@@ -173,6 +179,39 @@ public class CardService {
 			statisticsCacheService.invalidateDeck(userId, deckId);
 		}
 		return new CardDtos.ImportResult(created, skippedDuplicates);
+	}
+
+	@Transactional
+	public CardDtos.PronunciationBackfillResponse backfillPronunciation(Long userId, Long deckId) {
+		deckService.requireDeck(userId, deckId);
+		List<Card> cards = cardRepository.findActiveByDeckForUser(deckId, userId);
+		int updated = 0;
+		int unchanged = 0;
+		int missing = 0;
+		int notWord = 0;
+		List<Card> changed = new ArrayList<>();
+		for (Card card : cards) {
+			if (card.getPhonetic() != null) {
+				unchanged++;
+				continue;
+			}
+			if (!pronunciationService.isSingleEnglishWord(card.getFront())) {
+				notWord++;
+				continue;
+			}
+			String phonetic = pronunciationService.phoneticFor(card.getFront());
+			if (phonetic == null) {
+				missing++;
+				continue;
+			}
+			card.setPhonetic(phonetic);
+			changed.add(card);
+			updated++;
+		}
+		if (!changed.isEmpty()) {
+			cardRepository.saveAll(changed);
+		}
+		return new CardDtos.PronunciationBackfillResponse(updated, unchanged, missing, notWord);
 	}
 
 	public Card requireCard(Long userId, Long cardId) {
@@ -231,7 +270,7 @@ public class CardService {
 	CardDtos.CardResponse toResponse(Card card) {
 		CardState state = card.getState();
 		return new CardDtos.CardResponse(card.getId(), card.getDeck().getId(), card.getFront(), card.getBack(),
-				card.getPosition(), status(state), state.getStage(), state.getRelearnMode(),
+				card.getPhonetic(), card.getPosition(), status(state), state.getStage(), state.getRelearnMode(),
 				state.getRelearnCorrectCount(), state.getDueDate(), state.getVersion(), card.getCreatedAt());
 	}
 

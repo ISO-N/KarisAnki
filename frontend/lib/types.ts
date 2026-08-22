@@ -35,6 +35,7 @@ export interface Card {
   deckId: number;
   front: string;
   back: string;
+  phonetic: string | null;
   position: number;
   status: "new" | "review" | "relearn" | "graduated";
   stage: number;
@@ -121,6 +122,13 @@ export interface ImportPreview {
 export interface ImportResult {
   created: number;
   skippedDuplicates: number;
+}
+
+export interface PronunciationBackfillResult {
+  updated: number;
+  unchanged: number;
+  missing: number;
+  notWord: number;
 }
 
 export interface BootstrapResponse {

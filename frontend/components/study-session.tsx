@@ -244,6 +244,7 @@ export function StudySession({ deckId, type }: { deckId: number; type: "LEARN" |
                   familiarProgressLabel={familiarProgressLabel ?? undefined}
                   frontLabel={t("frontLabel")}
                   backLabel={t("backLabel")}
+                  pronunciationLabel={t("playPronunciation")}
                 />
               </motion.div>
             </AnimatePresence>

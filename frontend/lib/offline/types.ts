@@ -57,7 +57,7 @@ export function toStoredSession(session: StudySession): StoredSession {
     type: session.type,
     timezone: session.timezone,
     order: [...session.order],
-    cards: [...session.cards],
+    cards: session.cards.map((card) => ({ ...card, phonetic: card.phonetic ?? null })),
     total: session.total,
     completedCount: 0,
     lastSyncedAt: now,
@@ -85,5 +85,6 @@ export function fromStoredSession(value: unknown): StoredSession | null {
   if (!stored.lastClientAnswerIds || typeof stored.lastClientAnswerIds !== "object") {
     stored.lastClientAnswerIds = {};
   }
-  return stored as StoredSession;
+  const cards = stored.cards.map((card) => ({ ...card, phonetic: card.phonetic ?? null }));
+  return { ...stored, cards } as StoredSession;
 }
