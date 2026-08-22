@@ -90,7 +90,7 @@ CMUdict 是美式英语数据，默认只支持美音。字典主条目优先，
 
 ## Migration Plan
 
-1. 新增 `V3__add_card_phonetic.sql`，为 `cards` 增加可空 `phonetic TEXT`。
+1. 新增 `V5__add_card_phonetic.sql`，为 `cards` 增加可空 `phonetic TEXT`。
 2. 新增后端词典资源和 `PronunciationService`，再让创建、更新、导入和补齐流程使用。
 3. 更新 API、OpenAPI 和前端类型，前端对缺失字段做兼容。
 4. 部署时 Flyway 自动应用迁移；旧数据不会被破坏，补齐操作负责回填已有卡片。

@@ -35,6 +35,7 @@
 |---|---|
 | **账号与认证** | 邮箱注册 / 登录，邀请码门控，内存限流，`KARISANKI_SESSION` 会话（Spring Session JDBC） |
 | **卡组与卡片** | 卡组创建 / 重命名 / 删除，卡片增删改查、分页与搜索，Markdown + KaTeX 渲染 |
+| **发音与音标** | 英语单词卡自动生成美式 IPA；中英文卡片正面可按钮朗读，支持中英混排分段 |
 | **学习调度** | 间隔复习与重学队列，`ScheduleEngine` 驱动的答题调度与冲突处理 |
 | **离线学习** | 会话快照 + IndexedDB 本地持久化，弱网 / 短时离线评分与幂等批量同步 |
 | **网络优化** | Dashboard bootstrap、卡组详情 overview、API 缓存优先与后台刷新、批量答题 |
@@ -49,7 +50,7 @@
 | 层 | 选型 | 说明 |
 |---|---|---|
 | 后端 | Spring Boot 4.1 · Java 21 | Spring WebMVC / Data JPA / Security / Validation / Session JDBC / Flyway |
-| 数据库 | PostgreSQL 17 | 唯一持久化存储，Flyway 管理迁移（`V1` 至 `V3`） |
+| 数据库 | PostgreSQL 17 | 唯一持久化存储，Flyway 管理迁移（`V1` 至 `V5`） |
 | 前端 | Next.js 16 · React 19 | App Router + `output: standalone`，Tailwind 4，shadcn `base-nova`，KaTeX |
 | 部署 | Docker Compose | `postgres` + `app` 单镜像编排，`master` push 自动发布 GHCR |
 
@@ -122,7 +123,7 @@ npm run dev                     # http://localhost:3000
 │   ├── src/main/java/.../service/     # 业务服务（Answer / Card / Deck / Queue / Statistics …）
 │   ├── src/main/java/.../web/         # 控制器 + DTO + ApiExceptionHandler
 │   ├── src/main/java/.../security/    # 会话、鉴权、限流
-│   └── src/main/resources/db/migration/ # Flyway V1__initial_schema.sql、V2__search_and_queue_indexes.sql、V3__answer_submissions.sql
+│   └── src/main/resources/db/migration/ # Flyway V1__initial_schema.sql、V2__search_and_queue_indexes.sql、V3__answer_submissions.sql、V4__answer_events_queue_type.sql、V5__add_card_phonetic.sql
 ├── frontend/                # Next.js 应用
 │   ├── app/                 # App Router 路由（decks / login / register / settings / statistics）
 │   ├── components/          # 业务组件 + ui/shadcn 基础组件
@@ -171,6 +172,7 @@ npm run dev                     # http://localhost:3000
 | 认证 | `/api/auth/*` | 注册、登录、注册状态查询；Dashboard 使用 `/api/bootstrap` |
 | 卡组 | `/api/decks` | 列表、创建、重命名、删除、选项查询；`/api/decks/{deckId}` 返回卡组 overview |
 | 卡片 | `/api/decks/{deckId}/cards` | 增删改查、分页、搜索 |
+| 音标 | `/api/decks/{deckId}/cards/pronunciation/backfill` | 批量补齐已有卡片的英语单词音标 |
 | 学习队列 | `/api/decks/{deckId}/queue` | 拉取待学队列 |
 | 学习会话 | `/api/decks/{deckId}/session` | 获取含完整卡片内容的离线会话快照 |
 | 答题 | `/api/answer` · `/api/answer/batch` | 幂等单条提交；同会话批量提交，逐项返回结果 |

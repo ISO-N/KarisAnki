@@ -34,7 +34,7 @@ cd backend && ./mvnw test
 docker compose -f docker-compose.test.yml down -v && docker compose -f docker-compose.test.yml up -d
 ```
 
-测试直连真实 PostgreSQL，不使用 H2 或 Testcontainers。Flyway 在测试启动时自动应用 `V1`、`V2` 迁移，`spring.jpa.hibernate.ddl-auto=validate` 校验实体与 schema。
+测试直连真实 PostgreSQL，不使用 H2 或 Testcontainers。Flyway 在测试启动时自动应用 `V1` 至 `V5` 迁移，`spring.jpa.hibernate.ddl-auto=validate` 校验实体与 schema。
 
 ### 前端（`frontend/`）
 
@@ -93,7 +93,7 @@ docker-compose.test.yml    测试专用 PG（18080 端口）
 - `web/` — 控制器与 DTO：`AnswerController`/`CardController`/`DeckController`/`QueueController`/`StatisticsController`/`SettingsController`/`AuthController`，`dto/` 下的请求/响应对象，`ApiExceptionHandler` 统一异常处理
 - `security/` — `SecurityConfig`、`KarisSessionIdResolver`、`KarisUserDetailsService`、内存限流 `AuthRateLimiter`、会话注册 `SessionRegistryService`
 - `config/` — `AppConfig`/`AppProperties`（绑定 `karisanki.*`）/`SessionConfig`
-- `resources/db/migration/` — Flyway 脚本 `V1__initial_schema.sql`、`V2__search_and_queue_indexes.sql`；`application.properties` 配置数据源、Flyway、Session JDBC（`KARISANKI_SESSION`，`httpOnly`/`SameSite=lax`）
+- `resources/db/migration/` — Flyway 脚本 `V1__initial_schema.sql`、`V2__search_and_queue_indexes.sql`、`V3__answer_submissions.sql`、`V4__answer_events_queue_type.sql`、`V5__add_card_phonetic.sql`；`application.properties` 配置数据源、Flyway、Session JDBC（`KARISANKI_SESSION`，`httpOnly`/`SameSite=lax`）
 
 单后端实例约束：Flyway 在启动时执行迁移，不支持多副本并发（见 `docs/single-instance.md`）。
 
