@@ -28,5 +28,5 @@ test("invalid login shows visible error", async ({ page }) => {
   await page.getByLabel("邮箱").fill(uniqueEmail("missing"));
   await page.getByLabel("密码", { exact: true }).fill("wrongpass");
   await page.getByRole("button", { name: "登录" }).click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator('[data-slot="alert"]')).toBeVisible();
 });
