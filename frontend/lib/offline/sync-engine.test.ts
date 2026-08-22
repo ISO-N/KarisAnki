@@ -10,6 +10,7 @@ import {
   subscribeSyncEngine,
   syncAllPending,
   syncSession,
+  type SyncEngineEvent,
   type SyncEngineStatus,
 } from "./sync-engine";
 import { sessionKey, toStoredSession } from "./types";
@@ -128,6 +129,30 @@ describe("sync engine", () => {
     expect(mocks.api).toHaveBeenCalledTimes(2);
     expect(await countPendingOutbox(key)).toBe(0);
     expect(await loadStoredSession(key)).toBeNull();
+  });
+
+  it("emits acceptedAnswer for accepted batch entries", async () => {
+    const deckId = sequence++;
+    const key = await seedSession(deckId);
+    const entry = await createOutboxEntry({
+      sessionKey: key,
+      cardId: 1,
+      result: "FAMILIAR",
+      queueType: "LEARN",
+      timezone: "UTC",
+      stateVersion: 1,
+    });
+    const events: SyncEngineEvent[] = [];
+    const unsubscribe = subscribeSyncEngine((event) => {
+      if (event.key === key) events.push(event);
+    });
+    mocks.api.mockResolvedValue({ results: [acceptedResult(entry.clientAnswerId, true)] });
+
+    await syncSession(key, 1);
+    unsubscribe();
+
+    expect(events.some((event) => event.acceptedAnswer?.cardId === 1
+      && event.acceptedAnswer.clientAnswerId === entry.clientAnswerId)).toBe(true);
   });
 
   it("keeps the session and reports pending when the queue is complete but outbox still has entries", async () => {

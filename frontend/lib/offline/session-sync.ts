@@ -135,6 +135,8 @@ export function useOfflineSession(
     try {
       const pending = await countPendingOutbox(key).catch(() => 0);
       const conflicted = await countConflictedOutboxForSession(key).catch(() => 0);
+      const hasLocalOutbox = pending > 0 || conflicted > 0;
+      const localChain = hasLocalOutbox ? await loadStoredSession(key).catch(() => null) : null;
       const cached = cacheKey && pending === 0 && conflicted === 0
         ? await readApiCache<StudySession>(cacheKey)
         : null;
@@ -148,7 +150,7 @@ export function useOfflineSession(
       }
 
       const fresh = await api<StudySession>(path);
-      const stored = toStoredSession(fresh);
+      const stored = localChain ? { ...toStoredSession(fresh), lastClientAnswerIds: localChain.lastClientAnswerIds } : toStoredSession(fresh);
       await saveStoredSession(stored);
       await writeSessionCache(stored);
       applySession(stored);
@@ -224,6 +226,20 @@ export function useOfflineSession(
     return subscribeSyncEngine((event) => {
       if (event.key !== key) return;
       setPendingCount(event.pendingCount);
+
+      if (event.acceptedAnswer) {
+        const current = sessionRef.current;
+        if (current) {
+          applySession({
+            ...current,
+            lastClientAnswerIds: {
+              ...current.lastClientAnswerIds,
+              [String(event.acceptedAnswer.cardId)]: event.acceptedAnswer.clientAnswerId,
+            },
+          });
+        }
+        return;
+      }
 
       if (event.status === "conflict") {
         setSyncStatus("conflict");

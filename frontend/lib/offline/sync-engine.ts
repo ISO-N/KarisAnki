@@ -34,6 +34,10 @@ export interface SyncEngineEvent {
   session: StoredSession | null;
   pendingCount: number;
   status: SyncEngineStatus;
+  acceptedAnswer?: {
+    cardId: number;
+    clientAnswerId: string;
+  };
 }
 
 type SyncEngineListener = (event: SyncEngineEvent) => void;
@@ -109,9 +113,9 @@ async function invalidateAfterAnswer(session: StoredSession, userId?: number): P
   await invalidateApiCache({ type: "stats", userId });
 }
 
-async function applyAcceptedToSession(entry: OutboxEntry, response: AnswerResponse, userId?: number): Promise<void> {
+async function applyAcceptedToSession(entry: OutboxEntry, response: AnswerResponse, userId?: number): Promise<StoredSession | null> {
   const current = await loadStoredSession(entry.sessionKey);
-  if (!current) return;
+  if (!current) return null;
   const currentCard = current.cards.find((item) => item.id === entry.cardId);
   const reinserted = entry.reinserted ?? currentCard?.status === "relearn";
   const order = mergeAcceptedAnswerOrder({
@@ -136,6 +140,7 @@ async function applyAcceptedToSession(entry: OutboxEntry, response: AnswerRespon
     lastClientAnswerIds: next.lastClientAnswerIds,
   });
   await writeSessionCache(next, userId);
+  return next;
 }
 
 function isConflictCode(code: string): boolean {
@@ -201,8 +206,19 @@ async function performSyncSession(key: string, userId?: number): Promise<SyncOut
         if (!entry) continue;
 
         if (result.accepted) {
-          await applyAcceptedToSession(entry, toAnswerResponse(result), userId);
+          const updated = await applyAcceptedToSession(entry, toAnswerResponse(result), userId);
+          const pendingCount = await countPendingOutbox(entry.sessionKey);
           await markOutboxAccepted(entry.clientAnswerId);
+          emit({
+            key: entry.sessionKey,
+            session: updated,
+            pendingCount,
+            status: "syncing",
+            acceptedAnswer: {
+              cardId: entry.cardId,
+              clientAnswerId: entry.clientAnswerId,
+            },
+          });
           await invalidateAfterAnswer(initial, userId);
           continue;
         }
