@@ -67,6 +67,8 @@ POST /api/answer
 POST /api/answer/batch
 ```
 
+同步器会持续 drain：一批完成后重新读取 outbox，批量执行期间新写入的评分继续进入后续批次，直到 pending 清空或遇到冲突、错误、离线。只有 pending 为 0 且本地队列为空时才清理会话；存在待同步项时不会显示为已同步。
+
 请求使用一个会话上下文，逐项保留 `clientAnswerId`、`stateVersion` 和 `previousClientAnswerId`：
 
 ```json
@@ -103,9 +105,11 @@ POST /api/answer/batch
 - `api-cache`：键为 `userId:method:path:query`，保存页面 API 的缓存优先数据；升级到版本 2 时保留 `sessions` 和 `outbox`
 ## 同步与冲突
 
-同步器监听 `online`、`offline` 和 `visibilitychange`，在线评分先写入 outbox，再按 500ms 或 20 条阈值触发 flush。同一会话的 pending 条目按最多 20 条切分提交到 `/api/answer/batch`；网络失败会保留整批 pending 并指数退避重试。
+同步器监听 `online`、`offline`、`visibilitychange` 和窗口 `focus`，在线评分先写入 outbox，再按 500ms 或 20 条阈值触发 flush。同一会话的 pending 条目按最多 20 条切分提交到 `/api/answer/batch`；网络失败会保留整批 pending 并指数退避重试。
 
-单条 `/api/answer` 提交代码路径保留在 `frontend/lib/offline/session-sync.ts` 中，可通过 `USE_BATCH_ANSWER_API` 常量关闭批量路径。
+应用级 `BackgroundSync` 在已登录且在线时也会运行，学习页和应用内其他页面共用同一个同步引擎与全局锁，避免同一标签页并发提交。用户离开学习或复习页后，未同步评分仍会由后台同步继续处理；同步成功后已完成的 session 会被清理，并刷新对应卡组与统计缓存。
+
+前端当前统一使用 `/api/answer/batch` 提交待同步评分；单条 `/api/answer` 仍作为服务端接口保留，供幂等和扩展使用。
 
 收到 `queue_refresh`、`queue_conflict` 或 `confirmation_required` 时：
 
