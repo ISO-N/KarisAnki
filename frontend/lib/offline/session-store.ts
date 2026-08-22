@@ -18,6 +18,15 @@ export async function loadStoredSession(key: string): Promise<StoredSession | nu
   return fromStoredSession(value);
 }
 
+export async function listStoredSessions(): Promise<StoredSession[]> {
+  const db = await openDatabase();
+  const transaction = db.transaction("sessions", "readonly");
+  const store = transaction.objectStore("sessions");
+  const values = (await requestResult(store.getAll())) as unknown[];
+  await transactionDone(transaction);
+  return values.map(fromStoredSession).filter((session): session is StoredSession => session !== null);
+}
+
 export async function updateStoredSession(
   key: string,
   patch: Partial<StoredSession>,
